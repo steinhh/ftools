@@ -35,6 +35,12 @@ if force_scalar:
 
 # No platform-specific link arguments needed
 fgaussian_extra_link_args = []
+if sys.platform == "darwin":
+    # macOS: use Accelerate framework
+    fgaussian_extra_link_args = ["-framework", "Accelerate"]
+else:
+    # Linux/other platforms: explicitly link math library for vectorized functions
+    fgaussian_extra_link_args = ["-lm"]
 
 ext_modules = [
     Extension(
