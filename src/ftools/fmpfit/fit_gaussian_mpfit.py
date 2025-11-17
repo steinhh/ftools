@@ -1,3 +1,10 @@
+def deviates(popt, x, y, fjac = None, error = None):
+    if error is None:
+        error = 1
+    #return [0, (y-gaussian(x, *popt))/error]
+    return [0, (y-fgaussian(x, *popt))/error]
+
+
 def fit_gaussian_mpfit(in_args):
     """
     Fit a Gaussian given initial, boundary conditions and fitting variables for
@@ -49,7 +56,6 @@ def fit_gaussian_mpfit(in_args):
                         maxiter=2000, quiet=1)
         popt = mp_.params
         dof = len(xdata) - len(p0)  # No. of observations  - no. of fitted params.
-        #chisquare = reduced_chisquare(ydata, gaussian(xdata, *popt), y_sigma, dof)
         chisquare = reduced_chisquare(ydata, fgaussian(xdata, *popt), y_sigma, dof)
         popt = np.append(popt, chisquare)
         popt = np.append(popt, 0)
