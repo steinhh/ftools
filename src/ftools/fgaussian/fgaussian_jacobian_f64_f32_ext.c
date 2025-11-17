@@ -1,8 +1,7 @@
 /*
- * Double (64-bit) Accelerate-optimized Gaussian Jacobian computation
+ * Mixed-precision Gaussian Jacobian: accepts float64 input, computes in float32, returns float64 output
  *
- * Computes partial derivatives: d/di0, d/dmu, d/dsigma
- * This is the float64 version for compatibility with existing code
+ * All internal calculations are performed in float32 for speed, but the interface is float64.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -17,26 +16,20 @@
 #include <Accelerate/Accelerate.h>
 #endif
 
+
 #ifdef USE_ACCELERATE
 /*
- * Accelerate-optimized Gaussian Jacobian computation using double (64-bit)
- * Computes all three partial derivatives in a vectorized manner
- * Output is (n, 3) array: [d_i0, d_mu, d_sigma] for each x value
+ * Accelerate-optimized Gaussian Jacobian computation using float (32-bit)
+ * All calculations in float32, input/output conversion handled in wrapper
  */
-static void compute_jacobian_accelerate_double(const double *x, double i0, double mu, double sigma,
-                                               double *result, npy_intp n)
+static void compute_jacobian_accelerate_float(const float *x, float i0, float mu, float sigma,
+                                              float *result, npy_intp n)
 {
-  const double two_sigma_sq = 2.0 * sigma * sigma;
-  const double inv_two_sigma_sq = 1.0 / two_sigma_sq;
-  const double scale = -inv_two_sigma_sq;
-  const double neg_mu = -mu;
-  const double sigma_sq = sigma * sigma;
-  const double sigma_cubed = sigma * sigma * sigma;
+  const float one = 1.0f;
+  const float neg_mu = -mu;
 
-  /* Allocate temporary arrays for computation */
-  double *diff = (double *)malloc(n * sizeof(double));
-  double *exp_term = (double *)malloc(n * sizeof(double));
-
+  float *diff = (float *)malloc(sizeof(float) * (size_t)n);
+  float *exp_term = (float *)malloc(sizeof(float) * (size_t)n);
   if (diff == NULL || exp_term == NULL)
   {
     free(diff);
@@ -44,70 +37,45 @@ static void compute_jacobian_accelerate_double(const double *x, double i0, doubl
     return;
   }
 
-  /* Step 1: diff = x - mu */
-  vDSP_vsaddD(x, 1, &neg_mu, diff, 1, n);
+  /* diff = x - mu */
+  vDSP_vsadd((float *)x, 1, &neg_mu, diff, 1, n);
 
-  /* Step 2: exp_term = diff^2 */
-  vDSP_vsqD(diff, 1, exp_term, 1, n);
+  /* exp_term = diff^2 */
+  vDSP_vsq(diff, 1, exp_term, 1, n);
 
-  /* Step 3: exp_term = exp_term * (-1 / two_sigma_sq) */
-  vDSP_vsmulD(exp_term, 1, &scale, exp_term, 1, n);
+  /* exp_term = -(diff^2) / (2*sigma^2) */
+  float scale = - (1.0f / (2.0f * sigma * sigma));
+  vDSP_vsmul(exp_term, 1, &scale, exp_term, 1, n);
 
-  /* Step 4: exp_term = exp(exp_term) */
+  /* exp_term = exp(exp_term) */
   int n_int = (int)n;
-  vvexp(exp_term, exp_term, &n_int);
+  vvexpf(exp_term, exp_term, &n_int);
 
-  /* Now compute the three derivatives:
-   * d_i0 = exp_term
-   * d_mu = i0 * exp_term * diff / sigma^2
-   * d_sigma = i0 * exp_term * diff^2 / sigma^3
-   */
-
-  /* Column 0: d_i0 = exp_term (stride 3 in output) */
-  for (npy_intp i = 0; i < n; i++)
-  {
-    result[i * 3 + 0] = exp_term[i];
-  }
+  /* Column 0: d_i0 = exp_term (store with stride 3) */
+  vDSP_vsmul(exp_term, 1, &one, result + 0, 3, n);
 
   /* Column 1: d_mu = i0 * exp_term * diff / sigma^2 */
-  double *temp = (double *)malloc(n * sizeof(double));
+  float *temp = (float *)malloc(sizeof(float) * (size_t)n);
   if (temp != NULL)
   {
-    /* temp = i0 * exp_term */
-    vDSP_vsmulD(exp_term, 1, &i0, temp, 1, n);
-    /* temp = temp * diff */
-    vDSP_vmulD(temp, 1, diff, 1, temp, 1, n);
-    /* temp = temp / sigma^2 */
-    double inv_sigma_sq = 1.0 / sigma_sq;
-    vDSP_vsmulD(temp, 1, &inv_sigma_sq, temp, 1, n);
-
-    for (npy_intp i = 0; i < n; i++)
-    {
-      result[i * 3 + 1] = temp[i];
-    }
+    vDSP_vsmul(exp_term, 1, &i0, temp, 1, n); /* temp = i0 * exp_term */
+    vDSP_vmul(temp, 1, diff, 1, temp, 1, n);   /* temp *= diff */
+    float inv_sigma_sq = 1.0f / (sigma * sigma);
+    vDSP_vsmul(temp, 1, &inv_sigma_sq, temp, 1, n);
+    vDSP_vsmul(temp, 1, &one, result + 1, 3, n); /* store into column 1 */
     free(temp);
   }
 
   /* Column 2: d_sigma = i0 * exp_term * diff^2 / sigma^3 */
-  /* Reuse diff for diff^2 computation */
-  vDSP_vsaddD(x, 1, &neg_mu, diff, 1, n);
-  vDSP_vsqD(diff, 1, diff, 1, n);
-
-  temp = (double *)malloc(n * sizeof(double));
+  temp = (float *)malloc(sizeof(float) * (size_t)n);
   if (temp != NULL)
   {
-    /* temp = i0 * exp_term */
-    vDSP_vsmulD(exp_term, 1, &i0, temp, 1, n);
-    /* temp = temp * diff^2 */
-    vDSP_vmulD(temp, 1, diff, 1, temp, 1, n);
-    /* temp = temp / sigma^3 */
-    double inv_sigma_cubed = 1.0 / sigma_cubed;
-    vDSP_vsmulD(temp, 1, &inv_sigma_cubed, temp, 1, n);
-
-    for (npy_intp i = 0; i < n; i++)
-    {
-      result[i * 3 + 2] = temp[i];
-    }
+    vDSP_vsq(diff, 1, temp, 1, n); /* temp = diff^2 */
+    vDSP_vsmul(exp_term, 1, &i0, exp_term, 1, n); /* exp_term = i0 * exp_term */
+    vDSP_vmul(exp_term, 1, temp, 1, temp, 1, n); /* temp = i0*exp_term*diff^2 */
+    float inv_sigma_cubed = 1.0f / (sigma * sigma * sigma);
+    vDSP_vsmul(temp, 1, &inv_sigma_cubed, temp, 1, n);
+    vDSP_vsmul(temp, 1, &one, result + 2, 3, n); /* store into column 2 */
     free(temp);
   }
 
@@ -119,17 +87,17 @@ static void compute_jacobian_accelerate_double(const double *x, double i0, doubl
 /*
  * Scalar fallback implementation (double)
  */
-static void compute_jacobian_scalar_double(const double *x, double i0, double mu, double sigma,
-                                           double *result, npy_intp n)
+static void compute_jacobian_scalar_float(const float *x, float i0, float mu, float sigma,
+                                          float *result, npy_intp n)
 {
-  const double two_sigma_sq = 2.0 * sigma * sigma;
-  const double sigma_sq = sigma * sigma;
-  const double sigma_cubed = sigma * sigma * sigma;
+  const float two_sigma_sq = 2.0f * sigma * sigma;
+  const float sigma_sq = sigma * sigma;
+  const float sigma_cubed = sigma * sigma * sigma;
 
   for (npy_intp i = 0; i < n; i++)
   {
-    double diff = x[i] - mu;
-    double exp_term = exp(-(diff * diff) / two_sigma_sq);
+    float diff = x[i] - mu;
+    float exp_term = expf(-(diff * diff) / two_sigma_sq);
 
     /* d/di0 */
     result[i * 3 + 0] = exp_term;
@@ -145,33 +113,31 @@ static void compute_jacobian_scalar_double(const double *x, double i0, double mu
 /*
  * Main computation function - dispatches to appropriate implementation
  */
-static void compute_jacobian_double(const double *x, double i0, double mu, double sigma,
-                                    double *result, npy_intp n)
+static void compute_jacobian_float(const float *x, float i0, float mu, float sigma,
+                                   float *result, npy_intp n)
 {
 #ifdef USE_ACCELERATE
-  compute_jacobian_accelerate_double(x, i0, mu, sigma, result, n);
+  compute_jacobian_accelerate_float(x, i0, mu, sigma, result, n);
 #else
-  compute_jacobian_scalar_double(x, i0, mu, sigma, result, n);
+  compute_jacobian_scalar_float(x, i0, mu, sigma, result, n);
 #endif
 }
 
 /*
  * Python interface: fgaussian_jacobian_f64(x, i0, mu, sigma)
  */
-static PyObject *fgaussian_jacobian_f64_fgaussian_jacobian_f64(PyObject *self, PyObject *args)
+static PyObject *fgaussian_jacobian_f64_f32_fgaussian_jacobian_f64_f32(PyObject *self, PyObject *args)
 {
   PyArrayObject *x_array = NULL;
-  double i0, mu, sigma;
+  double i0_d, mu_d, sigma_d;
 
-  /* Parse arguments */
   if (!PyArg_ParseTuple(args, "O!ddd",
                         &PyArray_Type, &x_array,
-                        &i0, &mu, &sigma))
+                        &i0_d, &mu_d, &sigma_d))
   {
     return NULL;
   }
 
-  /* Validate x is a numpy array */
   if (!PyArray_Check(x_array))
   {
     PyErr_SetString(PyExc_TypeError, "x must be a numpy array");
@@ -179,18 +145,15 @@ static PyObject *fgaussian_jacobian_f64_fgaussian_jacobian_f64(PyObject *self, P
   }
 
   /* Ensure x is float64 type and contiguous */
-  PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)x_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
+  PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF((PyObject *)x_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
   if (x_contig == NULL)
   {
     return NULL;
   }
 
-  /* Get array dimensions */
   int ndim = PyArray_NDIM(x_contig);
   npy_intp total_size = PyArray_SIZE(x_contig);
 
-  /* Validate that x is 1D */
   if (ndim != 1)
   {
     Py_DECREF(x_contig);
@@ -198,60 +161,88 @@ static PyObject *fgaussian_jacobian_f64_fgaussian_jacobian_f64(PyObject *self, P
     return NULL;
   }
 
-  /* Create output array (n, 3) shape for Jacobian matrix */
-  npy_intp result_dims[2] = {total_size, 3};
-  PyArrayObject *result = (PyArrayObject *)PyArray_SimpleNew(2, result_dims, NPY_DOUBLE);
-  if (result == NULL)
+  /* Convert parameters to float32 */
+  float i0 = (float)i0_d;
+  float mu = (float)mu_d;
+  float sigma = (float)sigma_d;
+
+  /* Validate sigma */
+  if (sigma <= 0.0f)
   {
     Py_DECREF(x_contig);
-    return NULL;
-  }
-
-  /* Get pointers to data */
-  const double *x_data = (const double *)PyArray_DATA(x_contig);
-  double *result_data = (double *)PyArray_DATA(result);
-
-  /* Validate sigma is positive */
-  if (sigma <= 0.0)
-  {
-    Py_DECREF(x_contig);
-    Py_DECREF(result);
     PyErr_SetString(PyExc_ValueError, "sigma must be positive");
     return NULL;
   }
 
-  /* Compute Jacobian matrix */
-  compute_jacobian_double(x_data, i0, mu, sigma, result_data, total_size);
+  /* Convert input to float32 buffer */
+  const double *x_data_d = (const double *)PyArray_DATA(x_contig);
+  float *x_data_f = (float *)malloc(sizeof(float) * (size_t)total_size);
+  if (x_data_f == NULL)
+  {
+    Py_DECREF(x_contig);
+    PyErr_NoMemory();
+    return NULL;
+  }
+  for (npy_intp i = 0; i < total_size; i++)
+    x_data_f[i] = (float)x_data_d[i];
 
+  /* Allocate float32 result buffer */
+  float *result_f = (float *)malloc(sizeof(float) * (size_t)(total_size * 3));
+  if (result_f == NULL)
+  {
+    free(x_data_f);
+    Py_DECREF(x_contig);
+    PyErr_NoMemory();
+    return NULL;
+  }
+
+  /* Compute in float32 */
+  compute_jacobian_float(x_data_f, i0, mu, sigma, result_f, total_size);
+
+  /* Create output double array (n,3) */
+  npy_intp result_dims[2] = {total_size, 3};
+  PyArrayObject *result = (PyArrayObject *)PyArray_SimpleNew(2, result_dims, NPY_DOUBLE);
+  if (result == NULL)
+  {
+    free(x_data_f);
+    free(result_f);
+    Py_DECREF(x_contig);
+    return NULL;
+  }
+
+  /* Convert float results to double output */
+  double *result_d = (double *)PyArray_DATA(result);
+  for (npy_intp i = 0; i < total_size * 3; i++)
+    result_d[i] = (double)result_f[i];
+
+  free(x_data_f);
+  free(result_f);
   Py_DECREF(x_contig);
 
   return (PyObject *)result;
 }
 
 /* Method definition */
-static PyMethodDef FGaussianJacobianF64Methods[] = {
-    {"fgaussian_jacobian_f64", fgaussian_jacobian_f64_fgaussian_jacobian_f64, METH_VARARGS,
-     "Accelerate-optimized Gaussian Jacobian computation\n\n"
-     "Computes partial derivatives d/di0, d/dmu, d/dsigma using float64."},
-    {NULL, NULL, 0, NULL}};
+static PyMethodDef FGaussianJacobianF64F32Methods[] = {
+  {"fgaussian_jacobian_f64_f32", fgaussian_jacobian_f64_f32_fgaussian_jacobian_f64_f32, METH_VARARGS,
+   "Gaussian Jacobian: accepts f64 input, computes in f32, returns f64 (n,3)."},
+  {NULL, NULL, 0, NULL}};
 
 /* Module definition */
-static struct PyModuleDef fgaussian_jacobian_f64_module = {
-    PyModuleDef_HEAD_INIT,
-    "fgaussian_jacobian_f64_ext",
-    "Float64 Accelerate-optimized C extension for computing Gaussian Jacobian",
-    -1,
-    FGaussianJacobianF64Methods};
+static struct PyModuleDef fgaussian_jacobian_f64_f32_module = {
+  PyModuleDef_HEAD_INIT,
+  "fgaussian_jacobian_f64_f32_ext",
+  "Mixed-precision Gaussian Jacobian: input f64 -> compute f32 -> output f64",
+  -1,
+  FGaussianJacobianF64F32Methods};
 
 /* Module initialization */
-PyMODINIT_FUNC PyInit_fgaussian_jacobian_f64_ext(void)
+PyMODINIT_FUNC PyInit_fgaussian_jacobian_f64_f32_ext(void)
 {
   import_array();
-
   if (PyErr_Occurred())
   {
     return NULL;
   }
-
-  return PyModule_Create(&fgaussian_jacobian_f64_module);
+  return PyModule_Create(&fgaussian_jacobian_f64_f32_module);
 }
