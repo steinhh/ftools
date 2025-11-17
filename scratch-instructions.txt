@@ -1,0 +1,53 @@
+I want to create another extension called fmpfit (I already created the directory), with a python wrapper in (__init__.py) so users can do "from ftools import fmpfit". The wrapper's signature should be as follows:
+------------------------------------------------------------------------------
+
+mp_ = mpfit(deviate_type, parinfo=parinfo, functkw=functkw, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,maxiter=2000,quiet=1)
+
+------------------------------------------------------------------------------
+
+Where the parameters are as follows:
+- deviate_type: int32 : 0 indicates a Gaussian model
+- functkw: { x: float64 ndarray[], y: float64 ndarray[], error: float64 ndarray[] }
+- parinfo: { value: float64 (aka p0), limits (aka bounds): float64 ndarray[2]} for each parameter
+- xtol: float64
+- ftol: float64
+- gtol: float64
+- maxiter: int32
+- quiet: int32
+
+The wrapper should process the input data so it can call a C function with the following signature:
+------------------------------------------------------------------------------
+
+fmpfit_core(double x[], double y[], double error[], double p0[], double bounds[][2],
+            int32 mpoints, int32 npar, int32 deviate_type,
+            double xtol, double ftol, double gtol,
+            int32 maxiter, int32 quiet,
+            double best_params[], double *bestnorm, double *orignorm,
+            int32 *niter, int32 *nfev, int32 *status,
+            double resid[], double xerror[], double covar[][]);
+
+
+
+------------------------------------------------------------------------------
+The function should return an object with the following attributes:
+------------------------------------------------------------------------------
+
+- best_params: float64 ndarray[] : best-fit parameter values
+- bestnorm: float64 : final chi-square value
+- orignorm: float64 : starting chi-square value
+- niter: int32 : number of iterations performed
+- nfev: int32 : number of function evaluations performed
+- status: int32 : status code from the fitting routine (0 = success, non-zero = failure)
+- npar: int32 : number of parameters fitted
+- nfree: int32 : number of free parameters
+- npegged: int32 : number of pegged parameters
+- nfunc: int32 : number of residuals (data points)
+- resid: float64 ndarray[] : final residuals
+- xerror: float64 ndarray[] : final parameter uncertainties (1-sigma)
+- covar: float64 ndarray[][] : covariance matrix of the fitted parameters
+------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+
+You may refer to some notes I made in the file "callsign.txt" as context, but do not implement mpfit_core() itself, only the Python wrapper, the C extension setup and a stub for mpfit_core() that can be filled in later.
