@@ -41,11 +41,11 @@ def fit_gaussian_mpfit(in_args):
         popt = np.array([np.nan] * (len(p0) + 2))
         popt[-1] = 1
     else:
-        fa = {'x': xdata, 'y': ydata, 'error': y_sigma}
+        functkw = {'x': xdata, 'y': ydata, 'error': y_sigma}
         parinfo = [{'value':p0[i], 'fixed':0, 'limited':[1,1],
             'limits':[bounds[0][i],bounds[1][i]]} for i in range(len(p0))]
 
-        mp_ = mpfit(deviates,parinfo=parinfo, functkw=fa, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
+        mp_ = mpfit(deviates,parinfo=parinfo, functkw=functkw, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
                         maxiter=2000, quiet=1)
         popt = mp_.params
         dof = len(xdata) - len(p0)  # No. of observations  - no. of fitted params.
