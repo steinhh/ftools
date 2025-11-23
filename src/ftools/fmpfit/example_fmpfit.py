@@ -2,9 +2,8 @@
 """
 Example usage of fmpfit extension
 
-Demonstrates fitting a Gaussian model to synthetic noisy data.
-Note: The core fitting function is a stub, so this example shows
-the API and data flow but won't produce actual fitted results yet.
+Demonstrates fitting a Gaussian model to synthetic noisy data using the
+MPFIT Levenberg-Marquardt algorithm with parameter constraints.
 """
 
 import numpy as np
@@ -71,8 +70,6 @@ result = fmpfit_wrap(
 print("\nResults:")
 print("-" * 70)
 print(f"Status:             {result.status}")
-if result.status == -999:
-    print("                    (Note: -999 = stub implementation)")
 print(f"Iterations:         {result.niter}")
 print(f"Function evals:     {result.nfev}")
 print(f"Initial chi^2:      {result.orignorm:.6e}")
@@ -88,8 +85,4 @@ for i, (param, err) in enumerate(zip(result.best_params, result.xerror)):
 
 print(f"\nCovariance matrix shape: {result.covar.shape}")
 print(f"Residuals shape:         {result.resid.shape}")
-
-print("\n" + "=" * 70)
-print("NOTE: The core fitting function is currently a stub.")
-print("The actual MPFIT implementation needs to be added to fmpfit_core().")
 print("=" * 70)

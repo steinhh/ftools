@@ -92,8 +92,11 @@ ext_modules = [
     ),
     Extension(
         "ftools.fmpfit.fmpfit_ext",
-        sources=[os.path.join("src", "ftools", "fmpfit", "fmpfit_ext.c")],
-        include_dirs=include_dirs,
+        sources=[
+            os.path.join("src", "ftools", "fmpfit", "fmpfit_ext.c"),
+            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
+        ],
+        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
         extra_compile_args=["-O3"],
     ),
 ]
@@ -101,7 +104,7 @@ ext_modules = [
 
 setup(
     name="ftools",
-    version="4.0.36",
+    version="4.0.37",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",

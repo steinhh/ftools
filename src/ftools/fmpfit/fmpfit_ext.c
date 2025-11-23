@@ -12,42 +12,75 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <cmpfit-1.5/mpfit.h>
+#include "cmpfit-1.5/mpfit.h"
 
-int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *deviates,
-                                               double **derivs, struct example_private_data *private)
+/* Private data structure for passing x, y, error to user function */
+struct gaussian_private_data
 {
+  const double *x;     /* Independent variable */
+  const double *y;     /* Measured values */
+  const double *error; /* Measurement uncertainties */
+};
+
+/*
+ * User function: compute Gaussian deviates (y - f(x))/error
+ * For Gaussian model: f(x) = p[0] * exp(-0.5 * ((x - p[1]) / p[2])^2)
+ * Parameters: p[0] = amplitude, p[1] = mean, p[2] = sigma
+ */
+int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *deviates,
+                                               double **derivs, void *private_data)
+{
+  struct gaussian_private_data *private = (struct gaussian_private_data *)private_data;
   int i;
-  /* Compute function deviates */
+  double amp, mean, sigma;
+
+  /* Extract parameters */
+  amp = p[0];
+  mean = p[1];
+  sigma = p[2];
+
+  /* Compute weighted deviates: (y - model) / error */
   for (i = 0; i < m; i++)
   {
-    deviates[i] = 0; /* function of x[i], p and private data */
+    double x_i = private->x[i];
+    double y_i = private->y[i];
+    double err_i = private->error[i];
+    double z = (x_i - mean) / sigma;
+    double model = amp * exp(-0.5 * z * z);
+
+    deviates[i] = (y_i - model) / err_i;
   }
 
-  /* If derivs is non-zero then user-computed derivatives are
-     requested */
+  /* If derivs is non-zero, compute analytical derivatives */
+  /* Since deviate = (y - model)/error, d(deviate)/d(p) = -d(model)/d(p)/error */
   if (derivs)
   {
-    int j;
-    for (j = 0; j < n; j++)
-      if (derivs[j])
-      {
-        /* It is only required to compute derivatives when
-           derivs[ipar] is non-null */
-        for (i = 0; i < m; i++)
-        {
-          derivs[j][i] = 0 /* derivative of the ith deviate with respect to
-                               the jth parameter = d(deviates[i]) / d(par[j]) */
-        }
-      }
+    for (i = 0; i < m; i++)
+    {
+      double x_i = private->x[i];
+      double err_i = private->error[i];
+      double z = (x_i - mean) / sigma;
+      double expterm = exp(-0.5 * z * z);
+
+      /* d(deviate)/d(amp) = -d(model)/d(amp)/error = -exp(-0.5*z^2) / error */
+      if (derivs[0])
+        derivs[0][i] = -expterm / err_i;
+
+      /* d(deviate)/d(mean) = -d(model)/d(mean)/error = -amp * z * exp(-0.5*z^2) / (sigma * error) */
+      if (derivs[1])
+        derivs[1][i] = -amp * z * expterm / (sigma * err_i);
+
+      /* d(deviate)/d(sigma) = -d(model)/d(sigma)/error = -amp * z^2 * exp(-0.5*z^2) / (sigma * error) */
+      if (derivs[2])
+        derivs[2][i] = -amp * z * z * expterm / (sigma * err_i);
+    }
   }
 
   return 0;
 }
 
 /*
- * Core MPFIT function (stub - to be implemented)
- *
+ * Core MPFIT function - calls MPFIT library
  */
 static void fmpfit_c_wrap(
     const double *x, const double *y, const double *error,
@@ -59,6 +92,87 @@ static void fmpfit_c_wrap(
     int *niter, int *nfev, int *status,
     double *resid, double *xerror, double *covar)
 {
+  int i;
+  mp_par *pars = NULL;
+  mp_config config;
+  mp_result result;
+  struct gaussian_private_data private;
+
+  /* Initialize parameter array from p0 */
+  for (i = 0; i < npar; i++)
+  {
+    best_params[i] = p0[i];
+  }
+
+  /* Setup parameter constraints from bounds array */
+  /* bounds is shape (npar, 2) with [lower, upper] for each parameter */
+  pars = (mp_par *)calloc(npar, sizeof(mp_par));
+  if (pars)
+  {
+    for (i = 0; i < npar; i++)
+    {
+      double lower = bounds[i * 2];
+      double upper = bounds[i * 2 + 1];
+
+      /* Check if lower bound is finite */
+      if (isfinite(lower))
+      {
+        pars[i].limited[0] = 1;
+        pars[i].limits[0] = lower;
+      }
+      else
+      {
+        pars[i].limited[0] = 0;
+      }
+
+      /* Check if upper bound is finite */
+      if (isfinite(upper))
+      {
+        pars[i].limited[1] = 1;
+        pars[i].limits[1] = upper;
+      }
+      else
+      {
+        pars[i].limited[1] = 0;
+      }
+
+      pars[i].fixed = 0;
+    }
+  }
+
+  /* Setup MPFIT configuration */
+  memset(&config, 0, sizeof(config));
+  config.ftol = ftol;
+  config.xtol = xtol;
+  config.gtol = gtol;
+  config.maxiter = maxiter;
+  config.nofinitecheck = 0;
+
+  /* Setup result structure */
+  memset(&result, 0, sizeof(result));
+  result.resid = resid;
+  result.xerror = xerror;
+  result.covar = covar;
+
+  /* Setup private data for user function */
+  private.x = x;
+  private.y = y;
+  private.error = error;
+
+  /* Call MPFIT */
+  *status = mpfit(myfunct_gaussian_deviates_with_derivatives,
+                  mpoints, npar, best_params, pars, &config,
+                  (void *)&private, &result);
+
+  /* Extract results */
+  *bestnorm = result.bestnorm;
+  *orignorm = result.orignorm;
+  *niter = result.niter;
+  *nfev = result.nfev;
+
+  /* Free allocated memory */
+  if (pars)
+    free(pars);
 }
 
 /*
