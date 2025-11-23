@@ -63,9 +63,9 @@ class MPFitResult:
                 f"bestnorm={self.bestnorm:.6e})")
 
 
-def fmpfit_py(deviate_type, parinfo=None, functkw=None, 
-              xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
-              maxiter=2000, quiet=1):
+def fmpfit_wrap(deviate_type, parinfo=None, functkw=None, 
+                xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
+                maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization
     
@@ -102,7 +102,7 @@ def fmpfit_py(deviate_type, parinfo=None, functkw=None,
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools import fmpfit
+    >>> from ftools import fmpfit_wrap
     >>> x = np.linspace(-5, 5, 100)
     >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
     >>> error = np.ones_like(y) * 0.1
@@ -185,4 +185,4 @@ def fmpfit_py(deviate_type, parinfo=None, functkw=None,
     )
 
 
-__all__ = ['fmpfit_py', 'MPFitResult']
+__all__ = ['fmpfit_wrap', 'MPFitResult']
