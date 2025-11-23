@@ -101,7 +101,7 @@ ext_modules = [
 
 setup(
     name="ftools",
-    version="4.0.33",
+    version="4.0.34",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",

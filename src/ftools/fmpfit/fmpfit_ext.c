@@ -12,6 +12,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cmpfit-1.5/mpfit.h>
 
 /*
  * Core MPFIT function (stub - to be implemented)

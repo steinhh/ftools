@@ -14,7 +14,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools import fmpfit
+from ftools import fmpfit_py
 
 # Generate synthetic Gaussian data
 np.random.seed(42)
@@ -55,9 +55,9 @@ print(f"\nTrue parameters:    {true_params}")
 print(f"Initial guesses:    {p0}")
 print(f"Parameter bounds:   {bounds}")
 
-# Call fmpfit
-print("\nCalling fmpfit()...")
-result = fmpfit(
+# Call fmpfit_py
+print("\nCalling fmpfit_py()...")
+result = fmpfit_py(
     deviate_type=0,  # 0 = Gaussian model
     parinfo=parinfo,
     functkw=functkw,

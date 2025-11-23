@@ -13,14 +13,14 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from ftools import fmpfit
+from ftools import fmpfit_py
 from ftools.fmpfit import MPFitResult
 
 
 def test_fmpfit_import():
-    """Test that fmpfit can be imported"""
-    assert fmpfit is not None
-    assert callable(fmpfit)
+    """Test that fmpfit_py can be imported"""
+    assert fmpfit_py is not None
+    assert callable(fmpfit_py)
     assert MPFitResult is not None
 
 
@@ -38,7 +38,7 @@ def test_fmpfit_basic_call():
     
     functkw = {'x': x, 'y': y, 'error': error}
     
-    result = fmpfit(0, parinfo=parinfo, functkw=functkw)
+    result = fmpfit_py(0, parinfo=parinfo, functkw=functkw)
     
     # Check result object attributes
     assert hasattr(result, 'best_params')
@@ -71,7 +71,7 @@ def test_fmpfit_result_shapes():
     
     functkw = {'x': x, 'y': y, 'error': error}
     
-    result = fmpfit(0, parinfo=parinfo, functkw=functkw)
+    result = fmpfit_py(0, parinfo=parinfo, functkw=functkw)
     
     assert result.best_params.shape == (npar,)
     assert result.xerror.shape == (npar,)
@@ -86,7 +86,7 @@ def test_fmpfit_missing_functkw():
     parinfo = [{'value': 1.0, 'limits': [0.0, 10.0]}]
     
     with pytest.raises(ValueError, match="functkw must be provided"):
-        fmpfit(0, parinfo=parinfo)
+        fmpfit_py(0, parinfo=parinfo)
 
 
 def test_fmpfit_missing_parinfo():
@@ -97,7 +97,7 @@ def test_fmpfit_missing_parinfo():
     functkw = {'x': x, 'y': y, 'error': error}
     
     with pytest.raises(ValueError, match="parinfo must be provided"):
-        fmpfit(0, functkw=functkw)
+        fmpfit_py(0, functkw=functkw)
 
 
 def test_fmpfit_incomplete_functkw():
@@ -109,7 +109,7 @@ def test_fmpfit_incomplete_functkw():
     # Missing 'error'
     functkw = {'x': x, 'y': y}
     with pytest.raises(ValueError, match="functkw must contain"):
-        fmpfit(0, parinfo=parinfo, functkw=functkw)
+        fmpfit_py(0, parinfo=parinfo, functkw=functkw)
 
 
 def test_fmpfit_array_length_mismatch():
@@ -121,7 +121,7 @@ def test_fmpfit_array_length_mismatch():
     functkw = {'x': x, 'y': y, 'error': error}
     
     with pytest.raises(ValueError, match="must have the same length"):
-        fmpfit(0, parinfo=parinfo, functkw=functkw)
+        fmpfit_py(0, parinfo=parinfo, functkw=functkw)
 
 
 def test_fmpfit_invalid_bounds():
@@ -135,7 +135,7 @@ def test_fmpfit_invalid_bounds():
     functkw = {'x': x, 'y': y, 'error': error}
     
     with pytest.raises(ValueError, match="lower bound must be < upper bound"):
-        fmpfit(0, parinfo=parinfo, functkw=functkw)
+        fmpfit_py(0, parinfo=parinfo, functkw=functkw)
 
 
 def test_fmpfit_result_repr():
@@ -151,7 +151,7 @@ def test_fmpfit_result_repr():
     ]
     
     functkw = {'x': x, 'y': y, 'error': error}
-    result = fmpfit(0, parinfo=parinfo, functkw=functkw)
+    result = fmpfit_py(0, parinfo=parinfo, functkw=functkw)
     
     repr_str = repr(result)
     assert 'MPFitResult' in repr_str
