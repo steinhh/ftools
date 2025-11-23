@@ -11,7 +11,7 @@ from . import fmpfit_ext
 
 class MPFitResult:
     """
-    Result object returned by mpfit()
+    Result object returned by fmpfit()
     
     Attributes
     ----------
@@ -63,9 +63,9 @@ class MPFitResult:
                 f"bestnorm={self.bestnorm:.6e})")
 
 
-def mpfit(deviate_type, parinfo=None, functkw=None, 
-          xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
-          maxiter=2000, quiet=1):
+def fmpfit(deviate_type, parinfo=None, functkw=None, 
+           xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
+           maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization
     
@@ -112,7 +112,7 @@ def mpfit(deviate_type, parinfo=None, functkw=None,
     ...     {'value': 1.0, 'limits': [0.1, 5.0]}     # sigma
     ... ]
     >>> functkw = {'x': x, 'y': y, 'error': error}
-    >>> result = fmpfit.mpfit(0, parinfo=parinfo, functkw=functkw)
+    >>> result = fmpfit.fmpfit(0, parinfo=parinfo, functkw=functkw)
     >>> print(result.best_params)
     """
     # Validate inputs
@@ -185,4 +185,4 @@ def mpfit(deviate_type, parinfo=None, functkw=None,
     )
 
 
-__all__ = ['mpfit', 'MPFitResult']
+__all__ = ['fmpfit', 'MPFitResult']

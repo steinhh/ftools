@@ -55,9 +55,9 @@ print(f"\nTrue parameters:    {true_params}")
 print(f"Initial guesses:    {p0}")
 print(f"Parameter bounds:   {bounds}")
 
-# Call mpfit
-print("\nCalling fmpfit.mpfit()...")
-result = fmpfit.mpfit(
+# Call fmpfit
+print("\nCalling fmpfit()...")
+result = fmpfit(
     deviate_type=0,  # 0 = Gaussian model
     parinfo=parinfo,
     functkw=functkw,
