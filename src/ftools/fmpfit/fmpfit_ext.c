@@ -14,13 +14,42 @@
 #include <string.h>
 #include <cmpfit-1.5/mpfit.h>
 
+int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *deviates,
+                                               double **derivs, struct example_private_data *private)
+{
+  int i;
+  /* Compute function deviates */
+  for (i = 0; i < m; i++)
+  {
+    deviates[i] = 0; /* function of x[i], p and private data */
+  }
+
+  /* If derivs is non-zero then user-computed derivatives are
+     requested */
+  if (derivs)
+  {
+    int j;
+    for (j = 0; j < n; j++)
+      if (derivs[j])
+      {
+        /* It is only required to compute derivatives when
+           derivs[ipar] is non-null */
+        for (i = 0; i < m; i++)
+        {
+          derivs[j][i] = 0 /* derivative of the ith deviate with respect to
+                               the jth parameter = d(deviates[i]) / d(par[j]) */
+        }
+      }
+  }
+
+  return 0;
+}
+
 /*
  * Core MPFIT function (stub - to be implemented)
  *
- * This function performs the actual Levenberg-Marquardt fitting.
- * It will be implemented separately using the MPFIT library.
  */
-static void fmpfit_core(
+static void fmpfit_c_wrap(
     const double *x, const double *y, const double *error,
     const double *p0, const double *bounds,
     int mpoints, int npar, int deviate_type,
@@ -30,68 +59,6 @@ static void fmpfit_core(
     int *niter, int *nfev, int *status,
     double *resid, double *xerror, double *covar)
 {
-  /*
-   * STUB IMPLEMENTATION
-   *
-   * This is a placeholder that demonstrates the interface.
-   * The actual implementation will use the MPFIT library to:
-   * 1. Set up the model function based on deviate_type
-   * 2. Configure MPFIT parameters (tolerances, limits, etc.)
-   * 3. Run the Levenberg-Marquardt optimization
-   * 4. Extract results and populate output arrays
-   *
-   * For now, just copy initial parameters and set dummy values
-   */
-
-  int i, j;
-
-  /* Copy initial parameters to output */
-  for (i = 0; i < npar; i++)
-  {
-    best_params[i] = p0[i];
-  }
-
-  /* Calculate initial residuals and chi-square */
-  double chisq = 0.0;
-  for (i = 0; i < mpoints; i++)
-  {
-    /* For Gaussian model: y = A * exp(-0.5 * ((x - mu) / sigma)^2) */
-    double model_val = 0.0;
-    if (deviate_type == 0 && npar >= 3)
-    {
-      /* Gaussian: p[0]=amplitude, p[1]=mean, p[2]=sigma */
-      double A = p0[0];
-      double mu = p0[1];
-      double sigma = p0[2];
-      model_val = A * exp(-0.5 * pow((x[i] - mu) / sigma, 2));
-    }
-
-    resid[i] = (y[i] - model_val) / error[i];
-    chisq += resid[i] * resid[i];
-  }
-
-  *orignorm = chisq;
-  *bestnorm = chisq; /* In real implementation, this would be the final chi-square */
-
-  /* Set dummy output values */
-  *niter = 0;
-  *nfev = 0;
-  *status = -999; /* -999 = stub not implemented */
-
-  /* Set dummy uncertainties */
-  for (i = 0; i < npar; i++)
-  {
-    xerror[i] = 0.0;
-  }
-
-  /* Set identity covariance matrix (dummy) */
-  for (i = 0; i < npar; i++)
-  {
-    for (j = 0; j < npar; j++)
-    {
-      covar[i * npar + j] = (i == j) ? 1.0 : 0.0;
-    }
-  }
 }
 
 /*
@@ -174,12 +141,12 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
   int niter, nfev, status;
 
   /* Call core fitting function */
-  fmpfit_core(x, y, error, p0, bounds,
-              mpoints, npar, deviate_type,
-              xtol, ftol, gtol, maxiter, quiet,
-              best_params, &bestnorm, &orignorm,
-              &niter, &nfev, &status,
-              resid, xerror, covar);
+  fmpfit_c_wrap(x, y, error, p0, bounds,
+                mpoints, npar, deviate_type,
+                xtol, ftol, gtol, maxiter, quiet,
+                best_params, &bestnorm, &orignorm,
+                &niter, &nfev, &status,
+                resid, xerror, covar);
 
   /* Create output arrays */
   npy_intp dims_params[1] = {npar};
