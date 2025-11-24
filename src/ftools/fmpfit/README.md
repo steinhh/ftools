@@ -109,7 +109,9 @@ To complete the implementation, `fmpfit_core()` needs to:
 3. Call MPFIT library routines
 4. Extract results and populate output arrays
 
-See `callsign.txt` for interface details and `cmpfit-1.5/` for the MPFIT library.
+## Implementation Details
+
+See `callsign.txt` for interface details and `cmpfit-1.5_f64/` for the MPFIT library.
 
 ## Testing
 
@@ -128,4 +130,5 @@ python src/ftools/fmpfit/example_fmpfit.py
 - `example_fmpfit.py` - Usage example
 - `test_fmpfit.py` - Unit tests
 - `callsign.txt` - Implementation notes
-- `cmpfit-1.5/` - MPFIT library source
+- `cmpfit-1.5_f64/` - MPFIT library source (float64)
+- `cmpfit-1.5_f32/` - MPFIT library source (float32)

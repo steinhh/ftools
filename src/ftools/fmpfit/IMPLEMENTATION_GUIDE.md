@@ -11,7 +11,7 @@ File: `src/ftools/fmpfit/fmpfit_ext.c`, lines 22-77
 1. **Include MPFIT headers**
 
    ```c
-   #include "cmpfit-1.5/mpfit.h"
+   #include "cmpfit-1.5_f64/mpfit.h"
    ```
 
 2. **Define model function**
@@ -106,17 +106,12 @@ File: `src/ftools/fmpfit/fmpfit_ext.c`, lines 22-77
 Update setup.py to link MPFIT library:
 
 ```python
-Extension(
-    "ftools.fmpfit.fmpfit_ext",
-    sources=[
-        os.path.join("src", "ftools", "fmpfit", "fmpfit_ext.c"),
-        os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
-    ],
-    include_dirs=include_dirs + [
-        os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5")
-    ],
-    extra_compile_args=["-O3"],
-)
+    Extension('ftools.fmpfit.fmpfit_ext',
+        sources=['src/ftools/fmpfit/fmpfit_ext.c',
+                 os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5_f64", "mpfit.c"),
+        ],
+        include_dirs=['src/ftools/fmpfit',
+                      os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5_f64")
 ```
 
 ### Testing

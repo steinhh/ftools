@@ -113,7 +113,9 @@ print(result.best_params)  # Access fit results
 
 To complete the implementation:
 
-1. Integrate MPFIT library from `cmpfit-1.5/`
+## Integration Steps
+
+1. Integrate MPFIT library from `cmpfit-1.5_f64/`
 2. Implement actual fitting algorithm in `fmpfit_core()`
 3. Add model functions (starting with Gaussian)
 4. Calculate proper uncertainties and covariance matrix

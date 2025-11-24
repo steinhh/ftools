@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cmpfit-1.5/mpfit.h"
+#include "cmpfit-1.5_f64/mpfit.h"
 
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate_f64.c"
