@@ -1,0 +1,63 @@
+CMPFIT-1.5 Float32 (Single Precision) Conversion
+================================================
+
+This is a single-precision (float32) version of the CMPFIT-1.5 library.
+All double-precision (float64) types and functions have been converted to 
+their single-precision equivalents.
+
+Key Changes:
+------------
+
+1. Data Types:
+   - All 'double' types converted to 'float'
+   - This includes function parameters, return values, and struct members
+
+2. Math Functions:
+   - sqrt()  -> sqrtf()
+   - fabs()  -> fabsf()
+   - exp()   -> expf()
+   - sin()   -> sinf()
+   - cos()   -> cosf()
+   - atan()  -> atanf()
+   - pow()   -> powf()
+
+3. Numeric Constants:
+   - Updated to single-precision values with 'f' suffix
+   - MP_MACHEP0: 1.19209290e-07f  (machine epsilon for float)
+   - MP_DWARF:   1.17549435e-38f  (smallest normalized float)
+   - MP_GIANT:   3.40282347e+38f  (largest float)
+   - MP_RDWARF and MP_RGIANT updated to use sqrtf()
+
+4. Float Literals:
+   - All floating-point literals now have 'f' suffix (e.g., 0.0f, 1.0f, 1.0e-4f)
+
+Files Modified:
+---------------
+- mpfit.h    : Header file with type definitions and constants
+- mpfit.c    : Main library implementation (2309 lines)
+- testmpfit.c: Test program
+
+Usage:
+------
+The API remains identical to the double-precision version, except all
+double* parameters are now float* parameters. This is a drop-in replacement
+for applications that can work with single precision.
+
+Precision Trade-offs:
+--------------------
+- Single precision provides ~7 decimal digits of accuracy
+- Double precision provides ~15 decimal digits of accuracy
+- For many fitting applications, single precision is sufficient
+- Single precision uses half the memory and may be faster on some architectures
+
+Testing:
+--------
+The test program (testmpfit) has been verified to work correctly with the
+float32 version. All tests pass with expected numerical results within
+single-precision tolerance.
+
+Compilation:
+-----------
+gcc -O2 -Wall mpfit.c testmpfit.c -o testmpfit -lm
+
+No compilation warnings or errors are produced.
