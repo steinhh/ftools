@@ -90,7 +90,7 @@ def _run_benchmarks_subprocess(sizes):
         # Use fixed iterations based on array size for better reproducibility
         # Don't use too many iterations or timing becomes noisy
         if n < 1000:
-            num_iter = 5000
+            num_iter = 15000
         elif n < 10000:
             num_iter = 2000
         elif n < 50000:
@@ -205,7 +205,7 @@ def run_benchmark_all_variants():
     print()
 
     # Generate size list by geometric doubling starting at 5 up to 100000
-    sizes = [5,6,7,8,9,10]
+    sizes = [1,2,3,4,5,6,7,8,9,10]
     n = 10
     while n < 10000:
         sizes.append(n)
