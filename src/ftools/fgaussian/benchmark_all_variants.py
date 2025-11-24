@@ -39,13 +39,16 @@ def rebuild_extensions(force_scalar=False):
         env.pop("FORCE_SCALAR", None)
         print("Building with Accelerate framework (default)...")
 
+    # Compute repository root relative to this script
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+
     # CRITICAL: Remove build directory to force complete rebuild
-    subprocess.run(["rm", "-rf", "build"], cwd="/Users/steinhh/tmp/ftools", capture_output=True)
+    subprocess.run(["rm", "-rf", "build"], cwd=repo_root, capture_output=True)
     
     result = subprocess.run(
         [sys.executable, "setup.py", "build_ext", "--inplace"],
         env=env,
-        cwd="/Users/steinhh/tmp/ftools",
+        cwd=repo_root,
         capture_output=True,
         text=True
     )
@@ -79,20 +82,21 @@ def _run_benchmarks_subprocess(sizes):
     import json
     import tempfile
     
-    cwd = "/Users/steinhh/tmp/ftools"
+    # Use repository root so subprocesses run from project root
+    cwd = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     results = {}
     
     for n in sizes:
         # Use fixed iterations based on array size for better reproducibility
         # Don't use too many iterations or timing becomes noisy
         if n < 1000:
-            num_iter = 500
+            num_iter = 5000
         elif n < 10000:
-            num_iter = 200
+            num_iter = 2000
         elif n < 50000:
-            num_iter = 100
+            num_iter = 1000
         else:
-            num_iter = 50
+            num_iter = 500
         
         # Create a temporary Python script to run in subprocess
         script = f"""
@@ -123,9 +127,12 @@ time_f64 = sorted(times_f64)[1]  # Take median
 # Benchmark f32 (take median of 3 runs)
 times_f32 = []
 for _ in range(3):
+    _i0 = float(i0)
+    _mu = float(mu)
+    _sigma = float(sigma)
     start = time.perf_counter()
     for _ in range(num_iter):
-        fgaussian_f32_ext.fgaussian_f32(x_f32, float(i0), float(mu), float(sigma))
+        fgaussian_f32_ext.fgaussian_f32(x_f32, _i0, _mu, _sigma)
     times_f32.append((time.perf_counter() - start) / num_iter * 1e6)
 time_f32 = sorted(times_f32)[1]  # Take median
 
@@ -180,9 +187,12 @@ def benchmark_size(n, num_iterations=1000):
     time_f64 = (time.perf_counter() - start) / num_iterations * 1e6
 
     # Benchmark f32
+    _i0 = float(i0)
+    _mu = float(mu)
+    _sigma = float(sigma)
     start = time.perf_counter()
     for _ in range(num_iterations):
-        fgaussian_f32_ext.fgaussian_f32(x_f32, float(i0), float(mu), float(sigma))
+        fgaussian_f32_ext.fgaussian_f32(x_f32, _i0, _mu, _sigma)
     time_f32 = (time.perf_counter() - start) / num_iterations * 1e6
 
     return time_f64, time_f32
@@ -194,13 +204,12 @@ def run_benchmark_all_variants():
     print("=" * 110)
     print()
 
-    # Generate size list
-    sizes = []
-    for i in range(100, 1000, 100):  # 100-900 by 100s
-        sizes.append(i)
-    for i in range(1000, 100001, 5000):  # 1000-95000 by 5000s
-        sizes.append(i)
-    sizes.append(100000)  # Add 100000 explicitly
+    # Generate size list by geometric doubling starting at 5 up to 100000
+    sizes = [5,6,7,8,9,10]
+    n = 10
+    while n < 10000:
+        sizes.append(n)
+        n *= 2
 
     # Phase 1: Rebuild with FORCE_SCALAR and collect scalar results
     print("Phase 1: Building and benchmarking SCALAR version...")

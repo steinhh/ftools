@@ -5,7 +5,8 @@ import subprocess
 import sys
 import os
 
-cwd = "/Users/steinhh/tmp/ftools"
+# Compute repository root relative to this script so file still works in new location
+cwd = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 # Phase 1: Build scalar
 print("Phase 1: Building scalar...")
