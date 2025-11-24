@@ -41,9 +41,11 @@ class MPFitResult:
         Parameter uncertainties (1-sigma)
     covar : ndarray
         Covariance matrix (npar x npar)
+    c_time : float
+        Time spent in C extension (seconds)
     """
     def __init__(self, best_params, bestnorm, orignorm, niter, nfev, status,
-                 npar, nfree, npegged, nfunc, resid, xerror, covar):
+                 npar, nfree, npegged, nfunc, resid, xerror, covar, c_time=0.0):
         self.best_params = best_params
         self.bestnorm = bestnorm
         self.orignorm = orignorm
@@ -57,6 +59,7 @@ class MPFitResult:
         self.resid = resid
         self.xerror = xerror
         self.covar = covar
+        self.c_time = c_time
     
     def __repr__(self):
         return (f"MPFitResult(status={self.status}, niter={self.niter}, "
@@ -159,13 +162,17 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
         if bounds[i, 0] >= bounds[i, 1]:
             raise ValueError(f"parinfo[{i}]: lower bound must be < upper bound")
     
-    # Call C extension
+    # Call C extension with timing
+    import time
+    t_start = time.perf_counter()
     result_dict = fmpfit_ext.fmpfit(
         x, y, error, p0, bounds,
         int(mpoints), int(npar), int(deviate_type),
         float(xtol), float(ftol), float(gtol),
         int(maxiter), int(quiet)
     )
+    t_end = time.perf_counter()
+    c_time = t_end - t_start
     
     # Create result object
     return MPFitResult(
@@ -181,7 +188,8 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
         nfunc=result_dict['nfunc'],
         resid=result_dict['resid'],
         xerror=result_dict['xerror'],
-        covar=result_dict['covar']
+        covar=result_dict['covar'],
+        c_time=c_time
     )
 
 
