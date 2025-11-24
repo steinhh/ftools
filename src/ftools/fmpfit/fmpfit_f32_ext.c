@@ -1,7 +1,7 @@
 /*
- * fmpfit_ext.c - Python C extension for MPFIT wrapper
+ * fmpfit_f32_ext.c - Python C extension for MPFIT wrapper (float32 version)
  *
- * Wraps the MPFIT library for nonlinear least-squares fitting
+ * Wraps the MPFIT library for nonlinear least-squares fitting using float32
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -11,29 +11,29 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cmpfit-1.5/mpfit.h"
+#include "cmpfit-1.5_f32/mpfit.h"
 
 /* Include Gaussian deviate computation */
-#include "gaussian_deviate.c"
+#include "gaussian_deviate_f32.c"
 
 /*
- * Core MPFIT function - calls MPFIT library
+ * Core MPFIT function - calls MPFIT library (float32 version)
  */
-static void fmpfit_c_wrap(
-    const double *x, const double *y, const double *error,
-    const double *p0, const double *bounds,
+static void fmpfit_f32_c_wrap(
+    const float *x, const float *y, const float *error,
+    const float *p0, const float *bounds,
     int mpoints, int npar, int deviate_type,
-    double xtol, double ftol, double gtol,
+    float xtol, float ftol, float gtol,
     int maxiter, int quiet,
-    double *best_params, double *bestnorm, double *orignorm,
+    float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
-    double *resid, double *xerror, double *covar)
+    float *resid, float *xerror, float *covar)
 {
   int i;
   mp_par *pars = NULL;
   mp_config config;
   mp_result result;
-  struct gaussian_private_data private;
+  struct gaussian_private_data_f32 private;
 
   /* Initialize parameter array from p0 */
   for (i = 0; i < npar; i++)
@@ -48,8 +48,8 @@ static void fmpfit_c_wrap(
   {
     for (i = 0; i < npar; i++)
     {
-      double lower = bounds[i * 2];
-      double upper = bounds[i * 2 + 1];
+      float lower = bounds[i * 2];
+      float upper = bounds[i * 2 + 1];
 
       /* Check if lower bound is finite */
       if (isfinite(lower))
@@ -78,29 +78,36 @@ static void fmpfit_c_wrap(
     }
   }
 
-  /* Setup MPFIT configuration */
+  /* Configure MPFIT */
   memset(&config, 0, sizeof(config));
   config.ftol = ftol;
   config.xtol = xtol;
   config.gtol = gtol;
   config.maxiter = maxiter;
-  config.nofinitecheck = 0;
 
-  /* Setup result structure */
+  /* Setup result structure to receive outputs */
   memset(&result, 0, sizeof(result));
   result.resid = resid;
   result.xerror = xerror;
   result.covar = covar;
 
-  /* Setup private data for user function */
+  /* Setup private data for Gaussian model */
   private.x = x;
   private.y = y;
   private.error = error;
 
   /* Call MPFIT */
-  *status = mpfit(myfunct_gaussian_deviates_with_derivatives,
-                  mpoints, npar, best_params, pars, &config,
-                  (void *)&private, &result);
+  if (deviate_type == 0)
+  {
+    /* Gaussian model */
+    *status = mpfit(myfunct_gaussian_deviates_with_derivatives_f32,
+                    mpoints, npar, best_params, pars, &config,
+                    (void *)&private, &result);
+  }
+  else
+  {
+    *status = -1; /* Unknown deviate type */
+  }
 
   /* Extract results */
   *bestnorm = result.bestnorm;
@@ -108,47 +115,43 @@ static void fmpfit_c_wrap(
   *niter = result.niter;
   *nfev = result.nfev;
 
-  /* Free allocated memory */
+  /* Free parameter constraints */
   if (pars)
+  {
     free(pars);
+  }
 }
 
 /*
- * Python wrapper: fmpfit(x, y, error, p0, bounds, mpoints, npar, deviate_type,
- *                        xtol, ftol, gtol, maxiter, quiet)
+ * Python wrapper function
  */
-static PyObject *py_fmpfit(PyObject *self, PyObject *args)
+static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
 {
-  PyArrayObject *x_array = NULL, *y_array = NULL, *error_array = NULL;
-  PyArrayObject *p0_array = NULL, *bounds_array = NULL;
+  PyObject *x_obj, *y_obj, *error_obj, *p0_obj, *bounds_obj;
   int mpoints, npar, deviate_type, maxiter, quiet;
-  double xtol, ftol, gtol;
+  double xtol_d, ftol_d, gtol_d;
 
-  /* Parse arguments */
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiidddii",
-                        &PyArray_Type, &x_array,
-                        &PyArray_Type, &y_array,
-                        &PyArray_Type, &error_array,
-                        &PyArray_Type, &p0_array,
-                        &PyArray_Type, &bounds_array,
+  /* Parse arguments - Python uses double ('d'), we'll convert to float */
+  if (!PyArg_ParseTuple(args, "OOOOOiiidddii",
+                        &x_obj, &y_obj, &error_obj, &p0_obj, &bounds_obj,
                         &mpoints, &npar, &deviate_type,
-                        &xtol, &ftol, &gtol,
+                        &xtol_d, &ftol_d, &gtol_d,
                         &maxiter, &quiet))
   {
     return NULL;
   }
 
-  /* Ensure arrays are contiguous and correct type */
-  PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)x_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *y_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)y_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *error_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)error_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *p0_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)p0_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *bounds_contig = (PyArrayObject *)PyArray_FROM_OTF(
-      (PyObject *)bounds_array, NPY_DOUBLE, NPY_ARRAY_IN_ARRAY);
+  /* Convert tolerance values to float */
+  float xtol = (float)xtol_d;
+  float ftol = (float)ftol_d;
+  float gtol = (float)gtol_d;
+
+  /* Convert to contiguous arrays */
+  PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF(x_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+  PyArrayObject *y_contig = (PyArrayObject *)PyArray_FROM_OTF(y_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+  PyArrayObject *error_contig = (PyArrayObject *)PyArray_FROM_OTF(error_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+  PyArrayObject *p0_contig = (PyArrayObject *)PyArray_FROM_OTF(p0_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+  PyArrayObject *bounds_contig = (PyArrayObject *)PyArray_FROM_OTF(bounds_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 
   if (!x_contig || !y_contig || !error_contig || !p0_contig || !bounds_contig)
   {
@@ -161,17 +164,19 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
   }
 
   /* Get data pointers */
-  const double *x = (const double *)PyArray_DATA(x_contig);
-  const double *y = (const double *)PyArray_DATA(y_contig);
-  const double *error = (const double *)PyArray_DATA(error_contig);
-  const double *p0 = (const double *)PyArray_DATA(p0_contig);
-  const double *bounds = (const double *)PyArray_DATA(bounds_contig);
+  float *x = (float *)PyArray_DATA(x_contig);
+  float *y = (float *)PyArray_DATA(y_contig);
+  float *error = (float *)PyArray_DATA(error_contig);
+  float *p0 = (float *)PyArray_DATA(p0_contig);
+  float *bounds = (float *)PyArray_DATA(bounds_contig);
 
   /* Allocate output arrays */
-  double *best_params = (double *)malloc(npar * sizeof(double));
-  double *resid = (double *)malloc(mpoints * sizeof(double));
-  double *xerror = (double *)malloc(npar * sizeof(double));
-  double *covar = (double *)malloc(npar * npar * sizeof(double));
+  float *best_params = (float *)malloc(npar * sizeof(float));
+  float *resid = (float *)malloc(mpoints * sizeof(float));
+  float *xerror = (float *)malloc(npar * sizeof(float));
+  float *covar = (float *)malloc(npar * npar * sizeof(float));
+  float bestnorm, orignorm;
+  int niter, nfev, status;
 
   if (!best_params || !resid || !xerror || !covar)
   {
@@ -184,31 +189,27 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
     Py_DECREF(error_contig);
     Py_DECREF(p0_contig);
     Py_DECREF(bounds_contig);
-    PyErr_NoMemory();
-    return NULL;
+    return PyErr_NoMemory();
   }
 
-  /* Output scalars */
-  double bestnorm, orignorm;
-  int niter, nfev, status;
-
-  /* Call core fitting function */
-  fmpfit_c_wrap(x, y, error, p0, bounds,
-                mpoints, npar, deviate_type,
-                xtol, ftol, gtol, maxiter, quiet,
-                best_params, &bestnorm, &orignorm,
-                &niter, &nfev, &status,
-                resid, xerror, covar);
+  /* Call core function */
+  fmpfit_f32_c_wrap(x, y, error, p0, bounds,
+                    mpoints, npar, deviate_type,
+                    xtol, ftol, gtol,
+                    maxiter, quiet,
+                    best_params, &bestnorm, &orignorm,
+                    &niter, &nfev, &status,
+                    resid, xerror, covar);
 
   /* Create output arrays */
   npy_intp dims_params[1] = {npar};
   npy_intp dims_resid[1] = {mpoints};
   npy_intp dims_covar[2] = {npar, npar};
 
-  PyArrayObject *best_params_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
-  PyArrayObject *resid_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_resid, NPY_DOUBLE);
-  PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
-  PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_DOUBLE);
+  PyArrayObject *best_params_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+  PyArrayObject *resid_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_resid, NPY_FLOAT32);
+  PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+  PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_FLOAT32);
 
   if (!best_params_array || !resid_array || !xerror_array || !covar_array)
   {
@@ -229,10 +230,10 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
   }
 
   /* Copy data to output arrays */
-  memcpy(PyArray_DATA(best_params_array), best_params, npar * sizeof(double));
-  memcpy(PyArray_DATA(resid_array), resid, mpoints * sizeof(double));
-  memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(double));
-  memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(double));
+  memcpy(PyArray_DATA(best_params_array), best_params, npar * sizeof(float));
+  memcpy(PyArray_DATA(resid_array), resid, mpoints * sizeof(float));
+  memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(float));
+  memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(float));
 
   /* Free temporary buffers */
   free(best_params);
@@ -264,8 +265,8 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
 
   /* Populate dictionary */
   PyDict_SetItemString(result, "best_params", (PyObject *)best_params_array);
-  PyDict_SetItemString(result, "bestnorm", PyFloat_FromDouble(bestnorm));
-  PyDict_SetItemString(result, "orignorm", PyFloat_FromDouble(orignorm));
+  PyDict_SetItemString(result, "bestnorm", PyFloat_FromDouble((double)bestnorm));
+  PyDict_SetItemString(result, "orignorm", PyFloat_FromDouble((double)orignorm));
   PyDict_SetItemString(result, "niter", PyLong_FromLong(niter));
   PyDict_SetItemString(result, "nfev", PyLong_FromLong(nfev));
   PyDict_SetItemString(result, "status", PyLong_FromLong(status));
@@ -287,22 +288,22 @@ static PyObject *py_fmpfit(PyObject *self, PyObject *args)
 }
 
 /* Method definition */
-static PyMethodDef FMPFitMethods[] = {
-    {"fmpfit", py_fmpfit, METH_VARARGS,
-     "Levenberg-Marquardt least-squares curve fitting\n\n"
-     "Performs constrained nonlinear least squares fitting using MPFIT."},
+static PyMethodDef FMPFitF32Methods[] = {
+    {"fmpfit_f32", py_fmpfit_f32, METH_VARARGS,
+     "Levenberg-Marquardt least-squares curve fitting (float32 version)\n\n"
+     "Performs constrained nonlinear least squares fitting using MPFIT with float32 precision."},
     {NULL, NULL, 0, NULL}};
 
 /* Module definition */
-static struct PyModuleDef fmpfit_module = {
+static struct PyModuleDef fmpfit_f32_module = {
     PyModuleDef_HEAD_INIT,
-    "fmpfit_ext",
-    "MPFIT curve fitting C extension (Levenberg-Marquardt with constraints)",
+    "fmpfit_f32_ext",
+    "MPFIT curve fitting C extension - float32 version (Levenberg-Marquardt with constraints)",
     -1,
-    FMPFitMethods};
+    FMPFitF32Methods};
 
 /* Module initialization */
-PyMODINIT_FUNC PyInit_fmpfit_ext(void)
+PyMODINIT_FUNC PyInit_fmpfit_f32_ext(void)
 {
   import_array();
 
@@ -311,5 +312,5 @@ PyMODINIT_FUNC PyInit_fmpfit_ext(void)
     return NULL;
   }
 
-  return PyModule_Create(&fmpfit_module);
+  return PyModule_Create(&fmpfit_f32_module);
 }

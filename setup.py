@@ -87,21 +87,31 @@ ext_modules = [
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fmpfit.fmpfit_ext",
+        "ftools.fmpfit.fmpfit_f64_ext",
         sources=[
-            os.path.join("src", "ftools", "fmpfit", "fmpfit_ext.c"),
+            os.path.join("src", "ftools", "fmpfit", "fmpfit_f64_ext.c"),
             os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
         ],
         include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
         extra_compile_args=["-O3"],
-        extra_link_args=fgaussian_extra_link_args,  # Use Accelerate on macOS
+        extra_link_args=fgaussian_extra_link_args,
+    ),
+    Extension(
+        "ftools.fmpfit.fmpfit_f32_ext",
+        sources=[
+            os.path.join("src", "ftools", "fmpfit", "fmpfit_f32_ext.c"),
+            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5_f32", "mpfit.c"),
+        ],
+        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        extra_compile_args=["-O3"],
+        extra_link_args=fgaussian_extra_link_args,
     ),
 ]
 
 
 setup(
     name="ftools",
-    version="4.0.48",
+    version="4.0.49",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",

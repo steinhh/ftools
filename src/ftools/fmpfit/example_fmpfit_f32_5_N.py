@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Example usage of fmpfit extension - Minimal data case
+Example usage of fmpfit_f32 extension - Minimal data case
 
 Demonstrates fitting a Gaussian model with only 5 data points spanning
 no more than the FWHM. Uses Poisson-distributed noise (error = sqrt(signal)).
 This is a challenging case with minimal data and realistic photon noise.
-Run N times with different noise realizations.
+Run N times with different noise realizations using float32 precision.
 
 Usage:
-    python example_fmpfit_5_N.py [N]
+    python example_fmpfit_f32_5_N.py [N]
     
 where N is the number of fitting runs (default: 10)
 """
@@ -22,22 +22,31 @@ import time
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools import fmpfit_wrap
+# Import from local module if running from fmpfit directory
+try:
+    from ftools.fmpfit import fmpfit_f32_wrap
+except ModuleNotFoundError:
+    # Try direct import if in fmpfit directory
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("fmpfit_module", "__init__.py")
+    fmpfit_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fmpfit_module)
+    fmpfit_f32_wrap = fmpfit_module.fmpfit_f32_wrap
 
 # Parse command line argument for number of runs
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 10
 
 print("=" * 70)
-print(f"FMPFIT Minimal Data Example: 5 pixels, {N} runs")
+print(f"FMPFIT FLOAT32 Minimal Data Example: 5 pixels, {N} runs")
 print("=" * 70)
 
 # Fixed parameters for all runs
-true_params = np.array([2.5, 0.0, 0.8])  # amplitude, mean, sigma
+true_params = np.array([2.5, 0.0, 0.8], dtype=np.float32)  # amplitude, mean, sigma
 fwhm = 2.355 * true_params[2]  # FWHM = 2.355 * sigma
 
 # 5 pixels spanning the FWHM (centered at mean=0.0)
 # We'll use points from -FWHM/2 to +FWHM/2
-x = np.linspace(-fwhm/2, fwhm/2, 5)
+x = np.linspace(-fwhm/2, fwhm/2, 5, dtype=np.float32)
 
 p0 = [2.0, 0.0, 1.0]  # Initial guesses
 bounds = [[0.0, 10.0], [-2.0, 2.0], [0.1, 5.0]]
@@ -47,6 +56,7 @@ print(f"FWHM: {fwhm:.3f}")
 print(f"Data points: {len(x)}")
 print(f"X range: [{x[0]:.3f}, {x[-1]:.3f}]")
 print(f"Initial guesses: {p0}")
+print(f"Precision: float32 (32-bit)")
 print(f"\nRunning {N} fits with different noise realizations...\n")
 
 # Storage for results
@@ -67,8 +77,8 @@ for i in range(N):
     y_true = true_params[0] * np.exp(-0.5 * ((x - true_params[1]) / true_params[2])**2)
     
     # Poisson noise: y ~ Poisson(y_true), error = sqrt(y)
-    y = np.random.poisson(y_true).astype(float)
-    error = np.sqrt(np.maximum(y, 1.0))  # Avoid division by zero for low counts
+    y = np.random.poisson(y_true).astype(np.float32)
+    error = np.sqrt(np.maximum(y, 1.0)).astype(np.float32)  # Avoid division by zero for low counts
     
     # Setup for this fit
     parinfo = [{'value': p0[j], 'limits': bounds[j]} for j in range(len(p0))]
@@ -76,7 +86,7 @@ for i in range(N):
     
     # Time the fit (total time including Python wrapper)
     t0 = time.perf_counter()
-    result = fmpfit_wrap(
+    result = fmpfit_f32_wrap(
         deviate_type=0,
         parinfo=parinfo,
         functkw=functkw,
@@ -208,4 +218,6 @@ print("\nNOTE: With only 5 data points and 3 parameters (2 DOF),")
 print("and Poisson noise (error = sqrt(signal)), fits are highly")
 print("sensitive to noise and may show large scatter.")
 print("Some fits may converge to local minima or parameter boundaries.")
+print("\nThis example uses float32 precision, which provides ~6-7 significant")
+print("digits and uses 50% less memory than float64.")
 print("=" * 70)

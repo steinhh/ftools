@@ -6,7 +6,8 @@ Provides efficient curve fitting with parameter constraints.
 """
 
 import numpy as np
-from . import fmpfit_ext
+from . import fmpfit_f64_ext
+from . import fmpfit_f32_ext
 
 
 class MPFitResult:
@@ -66,11 +67,11 @@ class MPFitResult:
                 f"bestnorm={self.bestnorm:.6e})")
 
 
-def fmpfit_wrap(deviate_type, parinfo=None, functkw=None, 
-                xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
-                maxiter=2000, quiet=1):
+def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, 
+                    xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
+                    maxiter=2000, quiet=1):
     """
-    Levenberg-Marquardt least-squares minimization
+    Levenberg-Marquardt least-squares minimization (float64)
     
     Parameters
     ----------
@@ -105,7 +106,7 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools import fmpfit_wrap
+    >>> from ftools.fmpfit import fmpfit_f64_wrap
     >>> x = np.linspace(-5, 5, 100)
     >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
     >>> error = np.ones_like(y) * 0.1
@@ -115,7 +116,7 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
     ...     {'value': 1.0, 'limits': [0.1, 5.0]}     # sigma
     ... ]
     >>> functkw = {'x': x, 'y': y, 'error': error}
-    >>> result = fmpfit.fmpfit_py(0, parinfo=parinfo, functkw=functkw)
+    >>> result = fmpfit_f64_wrap(0, parinfo=parinfo, functkw=functkw)
     >>> print(result.best_params)
     """
     # Validate inputs
@@ -165,7 +166,7 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
     # Call C extension with timing
     import time
     t_start = time.perf_counter()
-    result_dict = fmpfit_ext.fmpfit(
+    result_dict = fmpfit_f64_ext.fmpfit_f64(
         x, y, error, p0, bounds,
         int(mpoints), int(npar), int(deviate_type),
         float(xtol), float(ftol), float(gtol),
@@ -193,4 +194,121 @@ def fmpfit_wrap(deviate_type, parinfo=None, functkw=None,
     )
 
 
-__all__ = ['fmpfit_wrap', 'MPFitResult']
+def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, 
+                    xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
+                    maxiter=2000, quiet=1):
+    """
+    Levenberg-Marquardt least-squares minimization (float32 version)
+    
+    Same as fmpfit_wrap but uses float32 precision internally for faster computation
+    and lower memory usage.
+    
+    Parameters
+    ----------
+    deviate_type : int
+        Model type: 0 = Gaussian
+    parinfo : list of dict
+        Parameter info, each dict contains:
+        - 'value': float, initial parameter value
+        - 'limits': [lower, upper], parameter bounds
+        - 'fixed': int (optional), 1=fixed, 0=free (default)
+    functkw : dict
+        Function keywords containing:
+        - 'x': ndarray, independent variable
+        - 'y': ndarray, dependent variable
+        - 'error': ndarray, measurement uncertainties
+    xtol : float, optional
+        Relative tolerance in parameter values (default: 1e-6)
+    ftol : float, optional
+        Relative tolerance in chi-square (default: 1e-6)
+    gtol : float, optional
+        Orthogonality tolerance (default: 1e-6)
+    maxiter : int, optional
+        Maximum iterations (default: 2000)
+    quiet : int, optional
+        Suppress output: 1=quiet, 0=verbose (default: 1)
+    
+    Returns
+    -------
+    MPFitResult
+        Object containing fit results and diagnostics
+    """
+    # Validate inputs
+    if functkw is None:
+        raise ValueError("functkw must be provided")
+    if parinfo is None:
+        raise ValueError("parinfo must be provided")
+    
+    # Extract data from functkw
+    if 'x' not in functkw or 'y' not in functkw or 'error' not in functkw:
+        raise ValueError("functkw must contain 'x', 'y', and 'error'")
+    
+    x = np.asarray(functkw['x'], dtype=np.float32)
+    y = np.asarray(functkw['y'], dtype=np.float32)
+    error = np.asarray(functkw['error'], dtype=np.float32)
+    
+    # Validate data shapes
+    if x.ndim != 1 or y.ndim != 1 or error.ndim != 1:
+        raise ValueError("x, y, and error must be 1D arrays")
+    if len(x) != len(y) or len(x) != len(error):
+        raise ValueError("x, y, and error must have the same length")
+    
+    mpoints = len(x)
+    npar = len(parinfo)
+    
+    # Extract initial parameter values and bounds
+    p0 = np.zeros(npar, dtype=np.float32)
+    bounds = np.zeros((npar, 2), dtype=np.float32)
+    
+    for i, pinfo in enumerate(parinfo):
+        if 'value' not in pinfo:
+            raise ValueError(f"parinfo[{i}] must contain 'value'")
+        if 'limits' not in pinfo:
+            raise ValueError(f"parinfo[{i}] must contain 'limits'")
+        
+        p0[i] = float(pinfo['value'])
+        limits = pinfo['limits']
+        if len(limits) != 2:
+            raise ValueError(f"parinfo[{i}]['limits'] must have 2 elements")
+        bounds[i, 0] = float(limits[0])
+        bounds[i, 1] = float(limits[1])
+        
+        # Validate bounds
+        if bounds[i, 0] >= bounds[i, 1]:
+            raise ValueError(f"parinfo[{i}]: lower bound must be < upper bound")
+    
+    # Call C extension with timing
+    import time
+    t_start = time.perf_counter()
+    result_dict = fmpfit_f32_ext.fmpfit_f32(
+        x, y, error, p0, bounds,
+        int(mpoints), int(npar), int(deviate_type),
+        float(xtol), float(ftol), float(gtol),
+        int(maxiter), int(quiet)
+    )
+    t_end = time.perf_counter()
+    c_time = t_end - t_start
+    
+    # Create result object
+    return MPFitResult(
+        best_params=result_dict['best_params'],
+        bestnorm=result_dict['bestnorm'],
+        orignorm=result_dict['orignorm'],
+        niter=result_dict['niter'],
+        nfev=result_dict['nfev'],
+        status=result_dict['status'],
+        npar=result_dict['npar'],
+        nfree=result_dict['nfree'],
+        npegged=result_dict['npegged'],
+        nfunc=result_dict['nfunc'],
+        resid=result_dict['resid'],
+        xerror=result_dict['xerror'],
+        covar=result_dict['covar'],
+        c_time=c_time
+    )
+
+
+# Backward compatibility alias
+fmpfit_wrap = fmpfit_f64_wrap
+
+__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'fmpfit_wrap', 'MPFitResult']
