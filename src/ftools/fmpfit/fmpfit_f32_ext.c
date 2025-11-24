@@ -192,14 +192,21 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     return PyErr_NoMemory();
   }
 
-  /* Call core function */
-  fmpfit_f32_c_wrap(x, y, error, p0, bounds,
-                    mpoints, npar, deviate_type,
-                    xtol, ftol, gtol,
-                    maxiter, quiet,
-                    best_params, &bestnorm, &orignorm,
-                    &niter, &nfev, &status,
-                    resid, xerror, covar);
+  /* Release GIL while running the compute-heavy C routine so other Python
+     threads may run concurrently. MPFIT and the user callbacks are pure C
+     functions (they don't call into Python), so releasing the GIL here is
+     safe. */
+  {
+    Py_BEGIN_ALLOW_THREADS
+        fmpfit_f32_c_wrap(x, y, error, p0, bounds,
+                          mpoints, npar, deviate_type,
+                          xtol, ftol, gtol,
+                          maxiter, quiet,
+                          best_params, &bestnorm, &orignorm,
+                          &niter, &nfev, &status,
+                          resid, xerror, covar);
+    Py_END_ALLOW_THREADS
+  }
 
   /* Create output arrays */
   npy_intp dims_params[1] = {npar};

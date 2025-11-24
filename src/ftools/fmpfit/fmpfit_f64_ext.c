@@ -193,12 +193,19 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   int niter, nfev, status;
 
   /* Call core fitting function */
-  fmpfit_f64_c_wrap(x, y, error, p0, bounds,
-                    mpoints, npar, deviate_type,
-                    xtol, ftol, gtol, maxiter, quiet,
-                    best_params, &bestnorm, &orignorm,
-                    &niter, &nfev, &status,
-                    resid, xerror, covar);
+  /* Release GIL while running the compute-heavy C routine so other Python
+     threads may run concurrently. The MPFIT library and callbacks are pure
+     C and do not call back into Python, so this is safe. */
+  {
+    Py_BEGIN_ALLOW_THREADS
+        fmpfit_f64_c_wrap(x, y, error, p0, bounds,
+                          mpoints, npar, deviate_type,
+                          xtol, ftol, gtol, maxiter, quiet,
+                          best_params, &bestnorm, &orignorm,
+                          &niter, &nfev, &status,
+                          resid, xerror, covar);
+    Py_END_ALLOW_THREADS
+  }
 
   /* Create output arrays */
   npy_intp dims_params[1] = {npar};
