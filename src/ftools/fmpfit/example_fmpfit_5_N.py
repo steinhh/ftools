@@ -103,7 +103,7 @@ for i in range(N):
     if (i + 1) % max(1, N // 10) == 0 or i == 0:
         print(f"  Run {i+1:4d}/{N}: chi^2={result.bestnorm:6.1f}, "
               f"iter={result.niter:2d}, status={result.status}, "
-              f"time={elapsed*1000:.2f}ms")
+              f"time={elapsed*1e6:.2f}us")
 
 # Convert to arrays for statistics
 all_params = np.array(all_params)
@@ -156,11 +156,11 @@ print(f"  Std:    {all_nfev.std():.2f}")
 print(f"  Min:    {all_nfev.min()}")
 print(f"  Max:    {all_nfev.max()}")
 
-print(f"\nTiming statistics:")
-print(f"  Mean:   {all_times.mean()*1000:.2f} ms")
-print(f"  Std:    {all_times.std()*1000:.2f} ms")
-print(f"  Min:    {all_times.min()*1000:.2f} ms")
-print(f"  Max:    {all_times.max()*1000:.2f} ms")
+print("\nTiming statistics:")
+print(f"  Mean:   {all_times.mean()*1e6:.2f} us")
+print(f"  Std:    {all_times.std()*1e6:.2f} us")
+print(f"  Min:    {all_times.min()*1e6:.2f} us")
+print(f"  Max:    {all_times.max()*1e6:.2f} us")
 print(f"  Total:  {all_times.sum():.3f} s")
 
 print("\nParameter recovery (fitted - true):")
