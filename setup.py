@@ -27,12 +27,8 @@ except Exception:
     # request it at build time.
     include_dirs = []
 
-# Platform-specific settings for fgaussian
+# No platform-specific link arguments needed
 fgaussian_extra_link_args = []
-if sys.platform == "darwin":
-    # macOS: use Accelerate framework
-    fgaussian_extra_link_args = ["-framework", "Accelerate"]
-# On Linux/other platforms, no special linking needed (uses standard math library)
 
 ext_modules = [
     Extension(
@@ -98,13 +94,14 @@ ext_modules = [
         ],
         include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
         extra_compile_args=["-O3"],
+        extra_link_args=fgaussian_extra_link_args,  # Use Accelerate on macOS
     ),
 ]
 
 
 setup(
     name="ftools",
-    version="4.0.46",
+    version="4.0.47",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",

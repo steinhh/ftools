@@ -2,6 +2,10 @@
  * gaussian_deviate.c - Gaussian model deviate function for MPFIT
  *
  * Computes weighted residuals and analytical derivatives for Gaussian model
+ * using a standard C implementation with cached exponential values. Using the
+ * Accelerate framework on Mac did not seem to improve speed (quite the opposite)
+ *
+ * Includes analytical derivatives for amplitude, mean, and sigma parameters.
  */
 
 /* Private data structure for passing x, y, error to user function */
@@ -23,6 +27,7 @@ int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *
   struct gaussian_private_data *private = (struct gaussian_private_data *)private_data;
   int i;
   double amp, mean, sigma;
+  (void)n; /* Suppress unused parameter warning */
 
   /* Extract parameters */
   amp = p[0];
