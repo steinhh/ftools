@@ -113,22 +113,56 @@ To complete the implementation, `fmpfit_core()` needs to:
 
 See `callsign.txt` for interface details and `cmpfit-1.5_f64/` for the MPFIT library.
 
+## Multithreading Performance
+
+Both `fmpfit_f32` and `fmpfit_f64` release the Python GIL during computation, enabling true parallel execution. Benchmark results (48 fits, 10k points each):
+
+- **4.14x speedup** with 6 threads (69% efficiency)
+- **3.37x speedup** with 4 threads (84% efficiency)
+- **1.85x speedup** with 2 threads (93% efficiency)
+
+Threading is beneficial when individual fits take >0.5ms. For batch fitting workloads, use 4-6 worker threads for optimal throughput.
+
+### Parallel Batch Fitting
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+from ftools.fmpfit import fmpfit_f32_wrap
+
+# Run multiple fits in parallel
+with ThreadPoolExecutor(max_workers=4) as executor:
+    results = list(executor.map(run_fit, dataset_list))
+```
+
+See `MULTITHREADING_BENCHMARK.md` and `benchmark_f32_multithreading.py` for details.
+
 ## Testing
 
 ```bash
 # Run unit tests
 pytest tests/test_fmpfit.py -v
 
-# Run example
-python src/ftools/fmpfit/example_fmpfit.py
+# Test thread safety
+pytest tests/test_fmpfit_concurrent.py -v
+
+# Benchmark multithreading speedup
+python src/ftools/fmpfit/benchmark_f32_multithreading.py
+
+# Verify correctness only
+python src/ftools/fmpfit/benchmark_f32_multithreading.py --verify-only
 ```
 
 ## Files
 
 - `__init__.py` - Python wrapper and API
-- `fmpfit_ext.c` - C extension with stub
-- `example_fmpfit.py` - Usage example
-- `test_fmpfit.py` - Unit tests
-- `callsign.txt` - Implementation notes
+- `fmpfit_f32_ext.c` - C extension (float32)
+- `fmpfit_f64_ext.c` - C extension (float64)
+- `gaussian_deviate_f32.c` - Gaussian model (float32)
+- `gaussian_deviate_f64.c` - Gaussian model (float64)
+- `example_fmpfit_f32_5_N.py` - Usage example (float32)
+- `example_fmpfit_f64_5_N.py` - Usage example (float64)
+- `benchmark_f32_multithreading.py` - Threading speedup benchmark
+- `benchmark_f32_vs_f64.py` - Precision/performance comparison
+- `MULTITHREADING_BENCHMARK.md` - Benchmark results and analysis
 - `cmpfit-1.5_f64/` - MPFIT library source (float64)
 - `cmpfit-1.5_f32/` - MPFIT library source (float32)
