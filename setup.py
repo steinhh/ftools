@@ -27,6 +27,12 @@ except Exception:
     # request it at build time.
     include_dirs = []
 
+# Check for FORCE_SCALAR environment variable to disable Accelerate framework
+force_scalar = os.environ.get("FORCE_SCALAR", "0") == "1"
+fgaussian_extra_compile_args = ["-O3", "-ffast-math"]
+if force_scalar:
+    fgaussian_extra_compile_args.append("-DFORCE_SCALAR")
+
 # No platform-specific link arguments needed
 fgaussian_extra_link_args = []
 
@@ -55,35 +61,35 @@ ext_modules = [
         "ftools.fgaussian.fgaussian_f32_ext",
         sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_f32_ext.c")],
         include_dirs=include_dirs,
-        extra_compile_args=["-O3", "-ffast-math"],
+        extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftools.fgaussian.fgaussian_f64_ext",
         sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_f64_ext.c")],
         include_dirs=include_dirs,
-        extra_compile_args=["-O3", "-ffast-math"],
+        extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftools.fgaussian.fgaussian_jacobian_f32_ext",
         sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f32_ext.c")],
         include_dirs=include_dirs,
-        extra_compile_args=["-O3", "-ffast-math"],
+        extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftools.fgaussian.fgaussian_jacobian_f64_ext",
         sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f64_ext.c")],
         include_dirs=include_dirs,
-        extra_compile_args=["-O3", "-ffast-math"],
+        extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftools.fgaussian.fgaussian_jacobian_f64_f32_ext",
         sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f64_f32_ext.c")],
         include_dirs=include_dirs,
-        extra_compile_args=["-O3", "-ffast-math"],
+        extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
@@ -111,7 +117,7 @@ ext_modules = [
 
 setup(
     name="ftools",
-    version="4.0.58",
+    version="4.0.59",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
