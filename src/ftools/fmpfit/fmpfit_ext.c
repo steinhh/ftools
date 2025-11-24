@@ -39,28 +39,45 @@ int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *
   mean = p[1];
   sigma = p[2];
 
-  /* Compute weighted deviates: (y - model) / error */
+  /* Compute weighted deviates and cache exp() values for derivatives */
+  /* Allocate temporary storage for exp terms if derivatives are needed */
+  double *expterms = NULL;
+  double *z_values = NULL;
+
+  if (derivs)
+  {
+    expterms = (double *)malloc(m * sizeof(double));
+    z_values = (double *)malloc(m * sizeof(double));
+  }
+
   for (i = 0; i < m; i++)
   {
     double x_i = private->x[i];
     double y_i = private->y[i];
     double err_i = private->error[i];
     double z = (x_i - mean) / sigma;
-    double model = amp * exp(-0.5 * z * z);
+    double expterm = exp(-0.5 * z * z);
+    double model = amp * expterm;
 
     deviates[i] = (y_i - model) / err_i;
+
+    /* Cache values for derivative calculation */
+    if (derivs)
+    {
+      expterms[i] = expterm;
+      z_values[i] = z;
+    }
   }
 
-  /* If derivs is non-zero, compute analytical derivatives */
+  /* If derivs is non-zero, compute analytical derivatives using cached values */
   /* Since deviate = (y - model)/error, d(deviate)/d(p) = -d(model)/d(p)/error */
   if (derivs)
   {
     for (i = 0; i < m; i++)
     {
-      double x_i = private->x[i];
       double err_i = private->error[i];
-      double z = (x_i - mean) / sigma;
-      double expterm = exp(-0.5 * z * z);
+      double expterm = expterms[i];
+      double z = z_values[i];
 
       /* d(deviate)/d(amp) = -d(model)/d(amp)/error = -exp(-0.5*z^2) / error */
       if (derivs[0])
@@ -74,6 +91,10 @@ int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *
       if (derivs[2])
         derivs[2][i] = -amp * z * z * expterm / (sigma * err_i);
     }
+
+    /* Free temporary storage */
+    free(expterms);
+    free(z_values);
   }
 
   return 0;
@@ -137,7 +158,7 @@ static void fmpfit_c_wrap(
       }
 
       pars[i].fixed = 0;
-      pars[i].side = 3;  /* Use analytical derivatives (side=3) */
+      pars[i].side = 3; /* Use analytical derivatives (side=3) */
     }
   }
 
