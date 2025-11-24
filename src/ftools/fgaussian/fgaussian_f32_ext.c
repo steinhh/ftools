@@ -134,8 +134,13 @@ static PyObject *fgaussian_f32_fgaussian_f32(PyObject *self, PyObject *args)
     return NULL;
   }
 
-  /* Compute Gaussian profile */
-  compute_gaussian_float(x_data, i0, mu, sigma, result_data, total_size);
+  /* Compute Gaussian profile ? run pure C compute without holding the GIL
+     (MP-safe: compute_gaussian_* do not call Python C-API or touch Python objects) */
+  {
+    Py_BEGIN_ALLOW_THREADS
+        compute_gaussian_float(x_data, i0, mu, sigma, result_data, total_size);
+    Py_END_ALLOW_THREADS
+  }
 
   Py_DECREF(x_contig);
 
