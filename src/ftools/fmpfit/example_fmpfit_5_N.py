@@ -57,6 +57,7 @@ all_niter = []
 all_nfev = []
 all_status = []
 all_times = []
+all_c_times = []
 failed_runs = []
 
 # Run N fits
@@ -73,8 +74,8 @@ for i in range(N):
     parinfo = [{'value': p0[j], 'limits': bounds[j]} for j in range(len(p0))]
     functkw = {'x': x, 'y': y, 'error': error}
     
-    # Time the fit
-    t0 = time.time()
+    # Time the fit (total time including Python wrapper)
+    t0 = time.perf_counter()
     result = fmpfit_wrap(
         deviate_type=0,
         parinfo=parinfo,
@@ -85,7 +86,7 @@ for i in range(N):
         maxiter=2000,
         quiet=1
     )
-    elapsed = time.time() - t0
+    elapsed = time.perf_counter() - t0
     
     # Store results
     all_params.append(result.best_params)
@@ -95,6 +96,7 @@ for i in range(N):
     all_nfev.append(result.nfev)
     all_status.append(result.status)
     all_times.append(elapsed)
+    all_c_times.append(result.c_time)
     
     # Track failed convergence
     if result.status != 1 and result.status != 2 and result.status != 3 and result.status != 4:
@@ -113,6 +115,7 @@ all_niter = np.array(all_niter)
 all_nfev = np.array(all_nfev)
 all_status = np.array(all_status)
 all_times = np.array(all_times)
+all_c_times = np.array(all_c_times)
 
 # Calculate statistics
 print("\n" + "=" * 70)
@@ -156,12 +159,34 @@ print(f"  Std:    {all_nfev.std():.2f}")
 print(f"  Min:    {all_nfev.min()}")
 print(f"  Max:    {all_nfev.max()}")
 
-print("\nTiming statistics:")
+print("\nTiming statistics (total time):")
 print(f"  Mean:   {all_times.mean()*1e6:.2f} us")
 print(f"  Std:    {all_times.std()*1e6:.2f} us")
 print(f"  Min:    {all_times.min()*1e6:.2f} us")
 print(f"  Max:    {all_times.max()*1e6:.2f} us")
 print(f"  Total:  {all_times.sum():.3f} s")
+
+print("\nTiming statistics (C extension only):")
+print(f"  Mean:   {all_c_times.mean()*1e6:.2f} us")
+print(f"  Std:    {all_c_times.std()*1e6:.2f} us")
+print(f"  Min:    {all_c_times.min()*1e6:.2f} us")
+print(f"  Max:    {all_c_times.max()*1e6:.2f} us")
+print(f"  Total:  {all_c_times.sum():.3f} s")
+
+python_overhead = all_times - all_c_times
+print("\nPython overhead statistics:")
+print(f"  Mean:   {python_overhead.mean()*1e6:.2f} us")
+print(f"  Std:    {python_overhead.std()*1e6:.2f} us")
+print(f"  Min:    {python_overhead.min()*1e6:.2f} us")
+print(f"  Max:    {python_overhead.max()*1e6:.2f} us")
+
+print("\nTime breakdown (mean):")
+mean_total = all_times.mean() * 1e6
+mean_c = all_c_times.mean() * 1e6
+mean_python = python_overhead.mean() * 1e6
+print(f"  Total time:       {mean_total:8.2f} us (100.0%)")
+print(f"  C extension:      {mean_c:8.2f} us ({mean_c/mean_total*100:5.1f}%)")
+print(f"  Python overhead:  {mean_python:8.2f} us ({mean_python/mean_total*100:5.1f}%)")
 
 print("\nParameter recovery (fitted - true):")
 param_names = ['Amplitude', 'Mean', 'Sigma']
