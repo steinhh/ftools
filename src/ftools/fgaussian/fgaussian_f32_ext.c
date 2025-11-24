@@ -11,8 +11,8 @@
 #include <numpy/arrayobject.h>
 #include <math.h>
 
-/* Use Accelerate framework on macOS/iOS */
-#if defined(__APPLE__)
+/* Use Accelerate framework on macOS/iOS (unless FORCE_SCALAR is set) */
+#if defined(__APPLE__) && !defined(FORCE_SCALAR)
 #define USE_ACCELERATE 1
 #include <Accelerate/Accelerate.h>
 #endif

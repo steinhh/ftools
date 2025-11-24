@@ -14,15 +14,17 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-/* Use Accelerate framework on macOS/iOS */
-#if defined(__APPLE__)
+/* Use Accelerate framework on macOS/iOS (unless FORCE_SCALAR is set) */
+#if defined(__APPLE__) && !defined(FORCE_SCALAR)
 #define USE_ACCELERATE 1
 #include <Accelerate/Accelerate.h>
 #endif
 
 /*
  * Scalar implementation (float32)
+ * Only compile when Accelerate is not used to avoid unused-function warnings
  */
+#ifndef USE_ACCELERATE
 static void compute_jacobian_scalar_float(const float *x, float i0, float mu, float sigma,
                                           float *result, float *scratch, npy_intp n)
 {
@@ -45,6 +47,7 @@ static void compute_jacobian_scalar_float(const float *x, float i0, float mu, fl
     result[i * 3 + 2] = i0 * exp_term * (diff * diff) / sigma_cubed;
   }
 }
+#endif /* USE_ACCELERATE */
 
 /* Static scratch buffers to avoid repeated malloc/free */
 /* Thread-local scratch buffers */
