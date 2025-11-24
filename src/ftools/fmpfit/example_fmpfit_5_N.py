@@ -4,7 +4,8 @@
 Example usage of fmpfit extension - Minimal data case
 
 Demonstrates fitting a Gaussian model with only 5 data points spanning
-no more than the FWHM. This is a challenging case with minimal data.
+no more than the FWHM. Uses Poisson-distributed noise (error = sqrt(signal)).
+This is a challenging case with minimal data and realistic photon noise.
 Run N times with different noise realizations.
 
 Usage:
@@ -32,14 +33,12 @@ print("=" * 70)
 
 # Fixed parameters for all runs
 true_params = np.array([2.5, 0.0, 0.8])  # amplitude, mean, sigma
-# FWHM = 2.355 * sigma = 2.355 * 0.8 = 1.884
-fwhm = 2.355 * true_params[2]
+fwhm = 2.355 * true_params[2]  # FWHM = 2.355 * sigma
 
 # 5 pixels spanning the FWHM (centered at mean=0.0)
 # We'll use points from -FWHM/2 to +FWHM/2
 x = np.linspace(-fwhm/2, fwhm/2, 5)
 
-error = np.ones_like(x) * 0.1
 p0 = [2.0, 0.0, 1.0]  # Initial guesses
 bounds = [[0.0, 10.0], [-2.0, 2.0], [0.1, 5.0]]
 
@@ -65,8 +64,10 @@ for i in range(N):
     # Generate new noise realization for each run
     np.random.seed(42 + i)
     y_true = true_params[0] * np.exp(-0.5 * ((x - true_params[1]) / true_params[2])**2)
-    noise = np.random.normal(0, 0.1, len(x))
-    y = y_true + noise
+    
+    # Poisson noise: y ~ Poisson(y_true), error = sqrt(y)
+    y = np.random.poisson(y_true).astype(float)
+    error = np.sqrt(np.maximum(y, 1.0))  # Avoid division by zero for low counts
     
     # Setup for this fit
     parinfo = [{'value': p0[j], 'limits': bounds[j]} for j in range(len(p0))]
@@ -179,6 +180,7 @@ if failed_runs:
 
 print("=" * 70)
 print("\nNOTE: With only 5 data points and 3 parameters (2 DOF),")
-print("fits are highly sensitive to noise and may show large scatter.")
+print("and Poisson noise (error = sqrt(signal)), fits are highly")
+print("sensitive to noise and may show large scatter.")
 print("Some fits may converge to local minima or parameter boundaries.")
 print("=" * 70)

@@ -137,6 +137,7 @@ static void fmpfit_c_wrap(
       }
 
       pars[i].fixed = 0;
+      pars[i].side = 3;  /* Use analytical derivatives (side=3) */
     }
   }
 
