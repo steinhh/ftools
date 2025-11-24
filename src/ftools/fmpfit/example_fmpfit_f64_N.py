@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Example usage of fmpfit extension - Multiple runs
+Example usage of fmpfit_f64 extension - Multiple runs
 
 Demonstrates fitting a Gaussian model to synthetic noisy data N times,
 each with different random noise realizations. Useful for testing
-convergence statistics and performance.
+convergence statistics and performance using float64 precision.
 
 Usage:
-    python example_fmpfitN.py [N]
+    python example_fmpfit_f64_N.py [N]
     
 where N is the number of fitting runs (default: 10)
 """
@@ -21,13 +21,13 @@ import time
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools import fmpfit_wrap
+from ftools import fmpfit_f64_wrap
 
 # Parse command line argument for number of runs
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 10
 
 print("=" * 70)
-print(f"FMPFIT Multiple Runs Example: Fitting {N} datasets")
+print(f"FMPFIT FLOAT64 Multiple Runs Example: Fitting {N} datasets")
 print("=" * 70)
 
 # Fixed parameters for all runs
@@ -65,7 +65,7 @@ for i in range(N):
     
     # Time the fit
     t0 = time.time()
-    result = fmpfit_wrap(
+    result = fmpfit_f64_wrap(
         deviate_type=0,
         parinfo=parinfo,
         functkw=functkw,

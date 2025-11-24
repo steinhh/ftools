@@ -194,13 +194,11 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None,
     )
 
 
-def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, 
-                    xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
-                    maxiter=2000, quiet=1):
-    """
-    Levenberg-Marquardt least-squares minimization (float32 version)
-    
-    Same as fmpfit_wrap but uses float32 precision internally for faster computation
+def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10,
+                    ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
+    """MPFIT wrapper function for float32 (single precision) fitting.
+
+    Same as fmpfit_f64_wrap but uses float32 precision internally for faster computation
     and lower memory usage.
     
     Parameters
@@ -218,13 +216,13 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None,
         - 'y': ndarray, dependent variable
         - 'error': ndarray, measurement uncertainties
     xtol : float, optional
-        Relative tolerance in parameter values (default: 1e-6)
+        Relative tolerance in parameter values (default: 1e-10)
     ftol : float, optional
-        Relative tolerance in chi-square (default: 1e-6)
+        Relative tolerance in chi-square (default: 1e-10)
     gtol : float, optional
-        Orthogonality tolerance (default: 1e-6)
+        Orthogonality tolerance (default: 1e-10)
     maxiter : int, optional
-        Maximum iterations (default: 2000)
+        Maximum iterations (default: 200)
     quiet : int, optional
         Suppress output: 1=quiet, 0=verbose (default: 1)
     
@@ -308,7 +306,7 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None,
     )
 
 
-# Backward compatibility alias
-fmpfit_wrap = fmpfit_f64_wrap
+    return result
 
-__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'fmpfit_wrap', 'MPFitResult']
+
+__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'MPFitResult']

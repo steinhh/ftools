@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-Example usage of fmpfit extension
+Example usage of fmpfit_f32 extension
 
 Demonstrates fitting a Gaussian model to synthetic noisy data using the
-MPFIT Levenberg-Marquardt algorithm with parameter constraints.
+MPFIT Levenberg-Marquardt algorithm with parameter constraints (float32).
 """
 
 import numpy as np
@@ -13,18 +13,18 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools import fmpfit_wrap
+from ftools import fmpfit_f32_wrap
 
 # Generate synthetic Gaussian data
 np.random.seed(42)
-x = np.linspace(-5, 5, 100)
+x = np.linspace(-5, 5, 100, dtype=np.float32)
 
 # True parameters: amplitude=2.5, mean=1.0, sigma=0.8
-true_params = [2.5, 1.0, 0.8]
+true_params = np.array([2.5, 1.0, 0.8], dtype=np.float32)
 y_true = true_params[0] * np.exp(-0.5 * ((x - true_params[1]) / true_params[2])**2)
-noise = np.random.normal(0, 0.1, len(x))
+noise = np.random.normal(0, 0.1, len(x)).astype(np.float32)
 y = y_true + noise
-error = np.ones_like(y) * 0.1
+error = np.ones_like(y, dtype=np.float32) * 0.1
 
 # Initial parameter guesses
 p0 = [1.5, 0.5, 1.0]  # Deliberately off from true values
@@ -46,17 +46,18 @@ parinfo = [
 functkw = {'x': x, 'y': y, 'error': error}
 
 print("=" * 70)
-print("FMPFIT Example: Gaussian Fitting")
+print("FMPFIT Example: Gaussian Fitting (float32)")
 print("=" * 70)
 print(f"\nData points: {len(x)}")
 print(f"Parameters: {len(p0)}")
+print(f"Precision: float32 (32-bit)")
 print(f"\nTrue parameters:    {true_params}")
 print(f"Initial guesses:    {p0}")
 print(f"Parameter bounds:   {bounds}")
 
-# Call fmpfit_py
-print("\nCalling fmpfit_wrap()...")
-result = fmpfit_wrap(
+# Call fmpfit_f32_wrap
+print("\nCalling fmpfit_f32_wrap()...")
+result = fmpfit_f32_wrap(
     deviate_type=0,  # 0 = Gaussian model
     parinfo=parinfo,
     functkw=functkw,

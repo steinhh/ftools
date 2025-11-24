@@ -8,7 +8,7 @@ from .fsigma import fsigma as _fsigma2d
 from .fmedian3 import fmedian3 as _fmedian3d
 from .fsigma3 import fsigma3 as _fsigma3d
 from .fgaussian import fgaussian_f32, fgaussian_f64
-from .fmpfit import fmpfit_wrap, fmpfit_f64_wrap, fmpfit_f32_wrap
+from .fmpfit import fmpfit_f64_wrap, fmpfit_f32_wrap
 
 
 def fmedian(input_array, window_size: tuple, exclude_center: int = 0):
@@ -100,4 +100,4 @@ fmedian3d = _fmedian3d
 fsigma3d = _fsigma3d
 
 __version__ = "3.0.0"
-__all__ = ["fmedian", "fsigma", "fgaussian_f32", "fgaussian_f64", "fmedian2d", "fsigma2d", "fmedian3d", "fsigma3d", "fmpfit_wrap"]
+__all__ = ["fmedian", "fsigma", "fgaussian_f32", "fgaussian_f64", "fmedian2d", "fsigma2d", "fmedian3d", "fsigma3d", "fmpfit_f64_wrap", "fmpfit_f32_wrap"]
