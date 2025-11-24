@@ -50,7 +50,10 @@ static void compute_gaussian_accelerate_double(const double *x, double i0, doubl
 
 /*
  * Scalar fallback implementation (double)
+ * Only compile this fallback when Accelerate is not used to avoid
+ * unused-function warnings on platforms where the vectorized path is active.
  */
+#ifndef USE_ACCELERATE
 static void compute_gaussian_scalar_double(const double *x, double i0, double mu, double sigma,
                                            double *result, npy_intp n)
 {
@@ -62,6 +65,7 @@ static void compute_gaussian_scalar_double(const double *x, double i0, double mu
     result[i] = i0 * exp(-(diff * diff) / two_sigma_sq);
   }
 }
+#endif
 
 /*
  * Main computation function - dispatches to appropriate implementation

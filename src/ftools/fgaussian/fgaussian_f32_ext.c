@@ -51,7 +51,10 @@ static void compute_gaussian_accelerate_float(const float *x, float i0, float mu
 
 /*
  * Scalar fallback implementation (float)
+ * Only compile this fallback when Accelerate is not used to avoid
+ * unused-function warnings on platforms where the vectorized path is active.
  */
+#ifndef USE_ACCELERATE
 static void compute_gaussian_scalar_float(const float *x, float i0, float mu, float sigma,
                                           float *result, npy_intp n)
 {
@@ -63,6 +66,7 @@ static void compute_gaussian_scalar_float(const float *x, float i0, float mu, fl
     result[i] = i0 * expf(-(diff * diff) / two_sigma_sq);
   }
 }
+#endif
 
 /*
  * Main computation function - dispatches to appropriate implementation
