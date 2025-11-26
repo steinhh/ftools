@@ -3275,7 +3275,7 @@ static inline void merge_sorted_regions(double *d, int left, int mid, int right)
 
   /* Use stack allocation for small merges, malloc for large */
   double temp_buffer[128];
-  double *temp = (n1 + n2 <= 128) ? temp_buffer : malloc((n1 + n2) * sizeof(double));
+  double *temp = (n1 + n2 <= 128) ? temp_buffer : (double *)malloc((n1 + n2) * sizeof(double));
 
   /* Copy data to temp buffer */
   for (int i = 0; i < n1; i++)
