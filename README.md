@@ -1,182 +1,120 @@
 # ftools
 
-## C-based local image filters for cosmic ray detection and removal
-
-`ftools` provides fast implementations of miscellaneous routines using C extensions.
+High-performance C extensions for image processing and curve fitting.
 
 ## Features
 
-- **`fmedian`**: Local median computation - automatically works with 2D and 3D arrays
-- **`fsigma`**: Local population standard deviation - automatically works with 2D and 3D arrays
-- **`fgaussian_f32`** / **`fgaussian_f64`**: Fast Gaussian profile computation
-  - `fgaussian_f32`: Float32 version, ~7-10x faster than NumPy for small arrays, ~5x for large
-  - `fgaussian_f64`: Float64 version for compatibility, ~2-3x faster than NumPy
-  - Uses Apple Accelerate framework for vectorized computation
-- **`fmedian` and `fsigma`**:
-  - Optional center pixel/voxel exclusion for better outlier detection (default: include center)
-  - Robust NaN handling
-  - Correct edge handling (edge pixels/voxels use smaller neighborhoods)
-  - Full test coverage with unit, edge case, and integration tests
+| Module | Description |
+|--------|-------------|
+| `fmedian` | Local median filter (2D/3D auto-dispatch) |
+| `fsigma` | Local σ filter (2D/3D auto-dispatch) |
+| `fgaussian_f32/f64` | Gaussian profile (Accelerate-optimized) |
+| `fmpfit_f32/f64_wrap` | Levenberg-Marquardt fitting (GIL-free) |
 
-## Requirements
+**Common features:** NaN handling, edge handling, optional center exclusion (fmedian/fsigma).
 
-- Python 3.8+
-- NumPy >= 1.20
-- C compiler toolchain (gcc, clang, or MSVC)
-- macOS with Accelerate framework (for `fgaussian_f32` optimal performance)
-
-## Standard installation
+## Installation
 
 ```bash
-pip install .
+pip install .                        # Standard install
+pip install -e .                     # Editable (development)
+python setup.py build_ext --inplace  # Build extensions only
 ```
 
-## Building extensions in-place (for development)
-
-If you want to build the C extensions without installing:
-
-```bash
-python setup.py build_ext --inplace
-```
-
-## Git Hooks (Optional)
-
-The repository includes a pre-commit hook in `hooks/pre-commit` that automatically increments the patch version number and appends the branch name on each commit.
-
-To enable it, create a symlink:
-
-```bash
-ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
-```
-
-This will automatically update the version in `setup.py` (e.g., `3.2.1-main` → `3.2.2-main`).
+**Requirements:** Python 3.8+, NumPy ≥1.20, C compiler. macOS Accelerate used when available.
 
 ## Quick Start
 
 ```python
 import numpy as np
-from ftools import fmedian, fsigma
-# Direct extension import for minimal overhead:
-from ftools.fgaussian.fgaussian_f32_ext import fgaussian_f32
+from ftools import fmedian, fsigma, fgaussian_f32, fgaussian_f64
 
-# Generate random input data
-data_2d = np.random.normal(0.0, 1.0, (100, 200)).astype(np.float64)
-data_3d = np.random.normal(0.0, 1.0, (100, 200, 100)).astype(np.float64)
+# 2D/3D median and sigma filters
+data = np.random.randn(100, 200)
+median = fmedian(data, (3, 3), exclude_center=1)
+sigma = fsigma(data, (3, 3), exclude_center=1)
 
-xsize = ysize = zsize = 3
-# 2D example
-median_filtered_2d = fmedian(data_2d, (xsize, ysize), exclude_center=1)
-sigma_map_2d = fsigma(data_2d, (xsize, ysize), exclude_center=1)
+# 3D works the same way
+data_3d = np.random.randn(50, 100, 50)
+median_3d = fmedian(data_3d, (3, 3, 3))
 
-# 3D example
-median_filtered_3d = fmedian(data_3d, (xsize, ysize, zsize))
-sigma_map_3d = fsigma(data_3d, (xsize, ysize, zsize))
-
-# Gaussian profile computation (float32 - fastest)
-x_f32 = np.linspace(-10, 10, 1000, dtype=np.float32)
-profile_f32 = fgaussian_f32(x_f32, 1.0, 0.0, 1.5)
-
-# Or use float64 version for compatibility
-from ftools import fgaussian_f64
-x_f64 = np.linspace(-10, 10, 1000, dtype=np.float64)
-profile_f64 = fgaussian_f64(x_f64, 1.0, 0.0, 1.5)
+# Gaussian profiles
+x = np.linspace(-10, 10, 1000, dtype=np.float32)
+profile = fgaussian_f32(x, i0=1.0, mu=0.0, sigma=1.5)
 ```
 
-## Parameters
+### Curve Fitting (fmpfit)
+
+```python
+from ftools import fmpfit_f64_wrap
+import numpy as np
+
+x = np.linspace(-5, 5, 100)
+y = 2.5 * np.exp(-0.5 * ((x - 1.0) / 0.8)**2) + np.random.randn(100) * 0.1
+
+result = fmpfit_f64_wrap(
+    deviate_type=0,  # Gaussian model
+    parinfo=[
+        {'value': 1.0, 'limits': [0.0, 10.0]},  # amplitude
+        {'value': 0.0, 'limits': [-5.0, 5.0]},  # mean
+        {'value': 1.0, 'limits': [0.1, 5.0]}    # sigma
+    ],
+    functkw={'x': x, 'y': y, 'error': np.ones_like(y) * 0.1}
+)
+print(f"Best-fit: {result.best_params}, χ²={result.bestnorm:.2f}")
+```
+
+## API Reference
 
 ### fmedian / fsigma
 
-- `input_data`: Input NumPy array (2D or 3D, will be converted to float64)
-- `window_size`: tuple with window sizes. Must be odd positive integers.
-- `exclude_center`: Optional, if 1, exclude center pixel/voxel from filter calculation; if 0, include it (default: 0)
+```python
+fmedian(data, window_size, exclude_center=0)
+fsigma(data, window_size, exclude_center=0)
+```
+
+- `window_size`: `(x, y)` or `(x, y, z)` – odd positive integers
+- `exclude_center`: 1 to exclude center from calculation (useful for outlier detection)
+- Returns: float64 array, same shape as input
 
 ### fgaussian_f32 / fgaussian_f64
 
-Both functions compute: `i0 * exp(-((x - mu)^2) / (2 * sigma^2))`
+Computes: `i0 * exp(-((x - mu)² / (2 * sigma²))`
 
-**fgaussian_f32** (float32 - recommended for performance):
+```python
+fgaussian_f32(x, i0, mu, sigma)  # float32, fastest
+fgaussian_f64(x, i0, mu, sigma)  # float64
+```
 
-- `x`: Input array, dtype=float32 (no validation or conversion performed)
-- `i0`: Peak intensity (scalar, float)
-- `mu`: Center position (scalar, float)
-- `sigma`: Width parameter (scalar, float, must be > 0)
-- Returns: NumPy array of same shape as input, dtype=float32
+### fmpfit_f64_wrap / fmpfit_f32_wrap
 
-**fgaussian_f64** (float64 - for compatibility):
-
-- `x`: Input array, dtype=float64 (automatically converted if needed)
-- `i0`: Peak intensity (scalar, float)
-- `mu`: Center position (scalar, float)
-- `sigma`: Width parameter (scalar, float, must be > 0)
-- Returns: NumPy array of same shape as input, dtype=float64
-
-## Returns
-
-- **fmedian/fsigma**: NumPy array of same shape as input, dtype=float64
-- **fgaussian_f32**: NumPy array of same shape as input, dtype=float32
-- **fgaussian_f64**: NumPy array of same shape as input, dtype=float64
+Levenberg-Marquardt least-squares fitting. See `src/ftools/fmpfit/README.md` for details.
 
 ## Examples
 
-See the `examples` directory.
+See `examples/` directory for complete working examples.
 
 ## Testing
 
-Comprehensive tests covering unit tests, edge cases, parameter validation, and integration scenarios. Run tests using `pytest`:
-
 ```bash
-pytest
+pytest                              # Run all tests
+pytest --cov=ftools --cov-report=html  # With coverage
 ```
 
-### Run tests with coverage
+## Performance
 
-```bash
-pytest --cov=ftools --cov-report=html
-```
-
-## Project Structure
-
-```bash
-tree --gitignore
-```
-
-### Code Style
-
-The project follows standard Python conventions:
-
-- PEP 8 for Python code
-- Type hints where applicable
-- Comprehensive docstrings
+| Module | Speedup vs NumPy | Notes |
+|--------|------------------|-------|
+| fgaussian_f32 | 5-10× | Accelerate vvexpf |
+| fgaussian_f64 | 2-3× | Accelerate vvexp |
+| fmedian/fsigma | — | Sorting networks for small windows |
+| fmpfit | — | GIL-free, 4× speedup with 6 threads |
 
 ## License
 
-MIT License
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-
-1. All tests pass (`pytest`)
-2. New features include tests
-3. Code follows project style conventions
-4. Documentation is updated as needed
-
-## Performance Notes
-
-- **fmedian/fsigma**: Use float64, optimized sorting networks for small windows
-- **fgaussian_f32 (float32)**: Uses Apple Accelerate framework
-  - ~7-9x faster than NumPy for small arrays (N < 100)
-  - ~5-7x faster than NumPy for large arrays (N ? 1000)
-  - Vectorized exp() via Apple's vForce library (vvexpf)
-  - Zero-copy in-place computation
-  - Minimal overhead (~0.23 ?s) - direct C extension call
-  - Accuracy: <1e-7 difference vs float64
-- **fgaussian_f64 (float64)**: Also uses Apple Accelerate framework
-  - ~2-3x faster than NumPy (slower than float32 due to memory bandwidth)
-  - Vectorized exp() via Apple's vForce library (vvexp)
-  - Full float64 precision maintained
+MIT
 
 ## Credits
 
-- Blazingly fast sorting networks adapted from [Sorting Networks](https://bertdobbelaere.github.io/sorting_networks.html)
-- Many thanks to Claude!
+- Sorting networks: [Bert Dobbelaere](https://bertdobbelaere.github.io/sorting_networks.html)
+- MPFIT: Craig Markwardt (MINPACK-1 derivative)
