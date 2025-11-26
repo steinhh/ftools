@@ -32,17 +32,6 @@
    - Usage examples
    - Implementation notes
 
-### Modified Files
-
-1. **`setup.py`**
-   - Added `ftools.fmpfit.fmpfit_ext` extension
-
-2. **`src/ftools/__init__.py`**
-   - Imported `fmpfit` module
-   - Added to `__all__` export list
-
-### API Specification (Implemented)
-
 **Function signature:**
 
 ```python
@@ -82,8 +71,6 @@ void fmpfit_core(
     double *resid, double *xerror, double *covar)
 ```
 
-Currently returns status=-999 (stub) and copies initial parameters.
-
 ### Usage Example
 
 ```python
@@ -101,25 +88,3 @@ result = fmpfit.mpfit(0, parinfo=parinfo, functkw=functkw)
 
 print(result.best_params)  # Access fit results
 ```
-
-### Build Status
-
-? Extension compiles successfully
-? Module imports without errors
-? All 9 unit tests pass
-? Example runs successfully
-
-### Next Steps
-
-To complete the implementation:
-
-## Integration Steps
-
-1. Integrate MPFIT library from `cmpfit-1.5_f64/`
-2. Implement actual fitting algorithm in `fmpfit_core()`
-3. Add model functions (starting with Gaussian)
-4. Calculate proper uncertainties and covariance matrix
-5. Handle parameter constraints (fixed, pegged, bounded)
-6. Add more comprehensive tests with actual fitting
-
-The infrastructure is complete and ready for the core algorithm implementation.
