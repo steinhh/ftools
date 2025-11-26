@@ -139,11 +139,18 @@ time_f32 = sorted(times_f32)[1]  # Take median
 print(f"{{time_f64}} {{time_f32}}")
 """
         
+        # Set up environment with PYTHONPATH to find ftools module
+        # Prepend src directory to ensure we find the correct ftools package
+        env = os.environ.copy()
+        src_path = os.path.join(cwd, 'src')
+        env['PYTHONPATH'] = src_path
+        
         result = subprocess.run(
             [sys.executable, "-c", script],
             cwd=cwd,
             capture_output=True,
-            text=True
+            text=True,
+            env=env
         )
         
         if result.returncode == 0:
@@ -301,7 +308,9 @@ def main():
     )
 
     args = parser.parse_args()
-    os.chdir("/Users/steinhh/tmp/ftools")
+    # Change to repository root (relative to this script location)
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+    os.chdir(repo_root)
 
     if args.rebuild_both:
         print("Rebuilding scalar version first...")

@@ -2,27 +2,36 @@
 
 ## Summary
 
-Comprehensive benchmark comparing scalar and Accelerate-vectorized implementations of fgaussian across 30 array sizes from 100 to 100,000 elements.
+**Important Caveat:** For small arrays (N < 40), Accelerate vectorization overhead can make the scalar implementation faster. Substantial speedups from Accelerate are only seen for N ? 160, with f32 reaching up to 3.94x at N=5120. Always consider array size when choosing implementation.
 
-**Key Finding:** Accelerate provides **~1.44x speedup** for f64 and **~3.23x speedup** for f32 relative to f64 scalar baseline.
+Comprehensive benchmark comparing scalar and Accelerate-vectorized implementations of fgaussian across 20 array sizes from 1 to 5,120 elements.
+
+**Key Finding:** Accelerate provides **~1.15x speedup** for f64 and **~1.63x speedup** for f32 relative to f64 scalar baseline on average. Performance gains scale with array size, reaching **3.94x speedup for f32 Accelerate** at N=5120.
 
 ## Results
 
 ### Average Speedups (relative to f64 scalar baseline)
 
 - **f64 Scalar**: 1.00x (baseline)
-- **f32 Scalar**: 1.40x
-- **f64 Accelerate**: 1.44x ?
-- **f32 Accelerate**: 3.23x ?
+- **f32 Scalar**: 1.18x
+- **f64 Accelerate**: 1.15x
+- **f32 Accelerate**: 1.63x
 
-### Performance by Array Size (N=100 to 100,000)
+### Performance by Array Size
 
 | N | f64 Scalar | f32 Scalar | f64 Accel | f32 Accel |
 |---|----------|----------|----------|----------|
-| 100 | 1.00x | 0.87x | 1.34x | 1.33x |
-| 1000 | 1.00x | 1.36x | 1.49x | 2.47x |
-| 10000 | 1.00x | ~1.47x | ~1.51x | ~3.87x |
-| 100000 | 1.00x | 1.52x | 1.48x | 4.12x |
+| 1 | 1.00x | 1.50x | 1.52x | 1.68x |
+| 10 | 1.00x | 1.05x | 0.92x | 1.00x |
+| 20 | 1.00x | 1.10x | 1.01x | 1.05x |
+| 40 | 1.00x | 1.10x | 1.06x | 1.14x |
+| 80 | 1.00x | 1.15x | 1.22x | 1.41x |
+| 160 | 1.00x | 1.27x | 1.26x | 1.82x |
+| 320 | 1.00x | 1.32x | 1.38x | 2.25x |
+| 640 | 1.00x | 1.39x | 1.47x | 2.75x |
+| 1280 | 1.00x | 1.45x | 1.55x | 3.26x |
+| 2560 | 1.00x | 1.49x | 1.57x | 3.59x |
+| 5120 | 1.00x | 1.52x | 1.61x | 3.94x |
 
 ## Technical Details
 
@@ -32,17 +41,18 @@ Comprehensive benchmark comparing scalar and Accelerate-vectorized implementatio
 - **Builds**:
   - Scalar: `FORCE_SCALAR=1 python setup.py build_ext --inplace`
   - Accelerate: `python setup.py build_ext --inplace`
-- **Measurement**: Median of 3 runs per size, 10-50 iterations depending on array size
-- **Parameters**: `i0=2.5, mu=1.5, sigma=3.0`, ranges from -10 to 10
+- **Measurement**: Median of 3 runs per size, adaptive iterations (15000 for N<1000, 2000 for N<10000, 1000 for N<50000, 500 for N?50000)
+- **Parameters**: `i0=2.5, mu=1.5, sigma=3.0`, x ranges from -10 to 10
 
 ### Absolute Times (f64 at key sizes)
 
 | N | Scalar | Accelerate |
 |---|--------|-----------|
-| 1000 | 1.81 ?s | 1.22 ?s |
-| 10000 | 18.3 ?s | 12.1 ?s |
-| 50000 | 91.7 ?s | 63.4 ?s |
-| 100000 | 178.0 ?s | 120.3 ?s |
+| 160 | 0.715 ?s | 0.568 ?s |
+| 640 | 1.928 ?s | 1.308 ?s |
+| 1280 | 3.521 ?s | 2.274 ?s |
+| 2560 | 6.726 ?s | 4.291 ?s |
+| 5120 | 13.461 ?s | 8.373 ?s |
 
 ## Implementation Details
 
@@ -64,10 +74,11 @@ Comprehensive benchmark comparing scalar and Accelerate-vectorized implementatio
 
 ## Conclusions
 
-1. **Accelerate is effective**: Provides consistent 1.44x speedup on f64 across all array sizes
-2. **f32 gets more benefit**: Float32 sees 3.23x improvement due to Accelerate vectorization efficiency
-3. **Scales consistently**: Speedup remains stable across the entire 100-100k element range
-4. **Practical impact**: At 100k elements (typical use case), Accelerate reduces per-call time from 178 ?s to 120 ?s
+1. **Accelerate effectiveness scales with array size**: At small sizes (N<40), overhead negates benefits. At N?160, Accelerate provides consistent gains
+2. **f32 benefits most from Accelerate**: Float32 achieves up to 3.94x speedup at N=5120 due to efficient SIMD vectorization
+3. **f64 sees moderate gains**: f64 Accelerate provides ~1.6x speedup at larger array sizes (N?1280)
+4. **Practical impact**: At N=5120 (typical use case), Accelerate reduces f32 per-call time from 8.864 ?s to 3.419 ?s
+5. **Small array overhead**: For N<40, scalar implementation is faster due to vectorization setup costs
 
 ## Files Modified
 
