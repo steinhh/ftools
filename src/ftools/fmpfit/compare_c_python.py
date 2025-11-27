@@ -22,6 +22,9 @@ if __name__ == "__main__":
 import numpy as np
 from scipy.optimize import curve_fit
 from ftools.fmpfit import fmpfit_f64_wrap
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for PNG output
+import matplotlib.pyplot as plt
 
 
 def gaussian(x, i0, mu, sigma):
@@ -149,6 +152,72 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
     return results
 
 
+def plot_fit_comparison(result, output_dir=None):
+    """
+    Create a PNG file showing scipy (left) and mpfit (right) fits.
+    
+    Parameters
+    ----------
+    result : dict
+        Result dictionary from compare_scipy_fmpfit with added x, y, error, true_params
+    output_dir : str
+        Directory to save PNG files (default: figs subdir relative to this script)
+    """
+    if output_dir is None:
+        # Use figs subdirectory relative to this script
+        _this_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(_this_dir, 'figs')
+        os.makedirs(output_dir, exist_ok=True)
+    run_num = result['run']
+    x = result['x']
+    y = result['y']
+    error = result['error']
+    tp = result['true_params']
+    
+    # High-resolution x for smooth fit curves (10x resolution)
+    x_fine = np.linspace(x[0], x[-1], len(x) * 10)
+    
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Common settings
+    bar_width = (x[1] - x[0]) * 0.6
+    
+    for ax_idx, (method, label) in enumerate([('scipy', 'Scipy'), ('fmpfit', 'MPFIT')]):
+        ax = axes[ax_idx]
+        
+        # Plot data as bar chart with error bars
+        ax.bar(x, y, width=bar_width, alpha=0.6, color='steelblue', label='Data')
+        ax.errorbar(x, y, yerr=error, fmt='none', ecolor='black', capsize=3)
+        
+        # Plot true Gaussian (grey)
+        y_true_fine = gaussian(x_fine, *tp)
+        ax.plot(x_fine, y_true_fine, color='grey', linestyle='--', linewidth=2, label='True')
+        
+        # Plot fitted Gaussian if successful (green)
+        if result[method]['success']:
+            params = result[method]['params']
+            y_fit_fine = gaussian(x_fine, *params)
+            ax.plot(x_fine, y_fit_fine, color='green', linestyle='-', linewidth=2, label=f'{label} fit')
+            rchi2 = result[method]['reduced_chisq']
+            ax.set_title(f'{label}: I={params[0]:.1f}, v={params[1]:.2f}, w={params[2]:.2f}, rchi2={rchi2:.2f}')
+        else:
+            ax.set_title(f'{label}: FAILED')
+        
+        ax.set_xlabel('x (pixels)')
+        ax.set_ylabel('Intensity')
+        ax.legend(loc='upper right')
+        ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
+    
+    fig.suptitle(f'Run {run_num}: True I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}', fontsize=12)
+    plt.tight_layout()
+    
+    # Save PNG
+    output_path = os.path.join(output_dir, f'fit_run_{run_num:03d}.png')
+    plt.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f'  Saved: {output_path}')
+
+
 def estimate_fwhm_from_data(x, y, max_idx):
     """Estimate FWHM from noisy data by finding half-max crossings."""
     max_val = y[max_idx]
@@ -248,6 +317,9 @@ def run_comparison_n_times(n_runs, seed=42):
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
         result['run'] = i + 1
         result['true_params'] = true_params
+        result['x'] = x
+        result['y'] = y
+        result['error'] = error
         results_list.append(result)
     
     # Print header
@@ -318,6 +390,11 @@ def run_comparison_n_times(n_runs, seed=42):
     
     print("-" * 142)
     print(f"Summary: Scipy {n_scipy_fail}/{n_runs} failed, MPFIT {n_mpfit_fail}/{n_runs} failed (I/w: 10% tol, v: 0.1 px tol)")
+    
+    # Generate plots for the first 10 runs
+    print(f"\nGenerating plots for first {min(10, n_runs)} runs...")
+    for r in results_list[:10]:
+        plot_fit_comparison(r)
     
     return results_list
 
