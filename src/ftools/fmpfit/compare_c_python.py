@@ -129,13 +129,13 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
 
 def run_comparison_example():
     """Run a comparison example with synthetic Gaussian data."""
-    # Generate synthetic data
-    np.random.seed(42)
+    # Generate synthetic data with Gaussian noise
+    rng = np.random.default_rng(42)
     x = np.linspace(-5, 5, 100)
     true_params = [2.5, 1.0, 0.8]  # amplitude, mean, sigma
     y_true = gaussian(x, *true_params)
     noise_level = 0.1
-    y = y_true + np.random.normal(0, noise_level, len(x))
+    y = y_true + rng.normal(0, noise_level, len(x))
     error = np.ones_like(y) * noise_level
     
     # Initial guess and bounds
