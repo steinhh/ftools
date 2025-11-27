@@ -127,62 +127,75 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
     return results
 
 
-def run_comparison_example():
-    """Run a comparison example with synthetic Gaussian data."""
-    # Generate synthetic data with Gaussian noise
-    rng = np.random.default_rng(42)
-    x = np.linspace(-5, 5, 100)
-    true_params = [2.5, 1.0, 0.8]  # amplitude, mean, sigma
-    y_true = gaussian(x, *true_params)
+def run_comparison_n_times(n_runs, seed=42):
+    """Run comparison N times with 5-pixel data covering the FWHM."""
+    rng = np.random.default_rng(seed)
+    
+    # True parameters
+    true_params = [2.5, 0.0, 0.8]  # amplitude, mean, sigma
     noise_level = 0.1
-    y = y_true + rng.normal(0, noise_level, len(x))
-    error = np.ones_like(y) * noise_level
+    
+    # FWHM = 2 * sqrt(2 * ln(2)) * sigma ~ 2.355 * sigma
+    # Cover FWHM with 5 pixels centered on mean
+    fwhm = 2.355 * true_params[2]
+    half_fwhm = fwhm / 2
+    x = np.linspace(true_params[1] - half_fwhm, true_params[1] + half_fwhm, 5)
     
     # Initial guess and bounds
-    p0 = [2.0, 0.5, 1.0]
-    bounds = [(0.0, 10.0), (-5.0, 5.0), (0.1, 5.0)]
+    p0 = [2.0, 0.0, 1.0]
+    bounds = [(0.0, 10.0), (-2.0, 2.0), (0.1, 5.0)]
     
-    # Run comparison
-    results = compare_scipy_fmpfit(x, y, error, p0, bounds)
+    # Storage for results
+    results_list = []
     
-    # Print results
-    print("=" * 60)
-    print("Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap")
-    print("=" * 60)
-    print(f"\nTrue parameters: amplitude={true_params[0]}, mean={true_params[1]}, sigma={true_params[2]}")
-    print(f"Initial guess:   amplitude={p0[0]}, mean={p0[1]}, sigma={p0[2]}")
+    for i in range(n_runs):
+        y_true = gaussian(x, *true_params)
+        y = y_true + rng.normal(0, noise_level, len(x))
+        error = np.ones_like(y) * noise_level
+        
+        result = compare_scipy_fmpfit(x, y, error, p0, bounds)
+        result['run'] = i + 1
+        results_list.append(result)
     
-    print("\n--- scipy.optimize.curve_fit ---")
-    if results['scipy']['success']:
-        print(f"  Parameters: {results['scipy']['params']}")
-        print(f"  Errors:     {results['scipy']['errors']}")
-        print(f"  Chi-square: {results['scipy']['chisq']:.6f}")
-        print(f"  Reduced chi-sq: {results['scipy']['reduced_chisq']:.6f}")
-    else:
-        print(f"  FAILED: {results['scipy'].get('error', 'Unknown error')}")
+    # Print header
+    print("=" * 120)
+    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels covering FWHM)")
+    print(f"True parameters: amplitude={true_params[0]}, mean={true_params[1]}, sigma={true_params[2]}")
+    print(f"FWHM = {fwhm:.4f}, x = {x}")
+    print("=" * 120)
     
-    print("\n--- fmpfit_f64_wrap ---")
-    if results['fmpfit']['success']:
-        print(f"  Parameters: {results['fmpfit']['params']}")
-        print(f"  Errors:     {results['fmpfit']['errors']}")
-        print(f"  Chi-square: {results['fmpfit']['chisq']:.6f}")
-        print(f"  Reduced chi-sq: {results['fmpfit']['reduced_chisq']:.6f}")
-        print(f"  Iterations: {results['fmpfit']['niter']}")
-        print(f"  Func evals: {results['fmpfit']['nfev']}")
-        print(f"  C time:     {results['fmpfit']['c_time']*1000:.3f} ms")
-    else:
-        print(f"  FAILED: {results['fmpfit'].get('error', 'Unknown error')}")
+    # Table header
+    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} | "
+          f"{'mpfit_amp':>10} {'mpfit_mu':>10} {'mpfit_sig':>10} | "
+          f"{'amp_diff%':>9} {'mu_diff%':>9} {'sig_diff%':>9} | {'match':>5}")
+    print("-" * 120)
     
-    if 'comparison' in results:
-        print("\n--- Comparison ---")
-        print(f"  Parameter difference: {results['comparison']['param_diff']}")
-        print(f"  Percent difference:   {results['comparison']['param_diff_percent']}%")
-        print(f"  Chi-square diff:      {results['comparison']['chisq_diff']:.6e}")
-        print(f"  Parameters match:     {results['comparison']['match']}")
+    # Print each run
+    n_matches = 0
+    for r in results_list:
+        if r['scipy']['success'] and r['fmpfit']['success']:
+            sp = r['scipy']['params']
+            mp = r['fmpfit']['params']
+            pct = r['comparison']['param_diff_percent']
+            match = r['comparison']['match']
+            if match:
+                n_matches += 1
+            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} | "
+                  f"{mp[0]:>10.6f} {mp[1]:>10.6f} {mp[2]:>10.6f} | "
+                  f"{pct[0]:>9.4f} {pct[1]:>9.4f} {pct[2]:>9.4f} | {'Yes' if match else 'No':>5}")
+        else:
+            scipy_err = 'OK' if r['scipy']['success'] else 'FAIL'
+            mpfit_err = 'OK' if r['fmpfit']['success'] else 'FAIL'
+            print(f"{r['run']:>4} | scipy: {scipy_err}, mpfit: {mpfit_err}")
     
-    return results
+    print("-" * 120)
+    print(f"Summary: {n_matches}/{n_runs} runs matched (within 0.1% tolerance)")
+    
+    return results_list
 
 
 if __name__ == "__main__":
-    run_comparison_example()
+    import sys
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 10
+    run_comparison_n_times(n)
 
