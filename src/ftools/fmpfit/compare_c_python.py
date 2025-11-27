@@ -205,12 +205,14 @@ def estimate_fwhm_from_data(x, y, max_idx):
 
 def run_comparison_n_times(n_runs, seed=42):
     """
-    Run comparison N times with randomized true parameters.
+    Run comparison N times with randomized true parameters and Poisson noise.
     
     True parameters are randomized for each run:
     - amplitude: uniform in [1, 20]
     - mu (mean): uniform in [x[0], x[-1]], so peak can be anywhere in the 5-pixel range
     - FWHM: uniform in [2, 5] pixels
+    
+    Noise is Poisson-distributed (variance = signal), with error = sqrt(counts).
     
     Initial guesses are derived from the noisy data:
     - p0_amp: value of the maximum pixel
@@ -231,8 +233,6 @@ def run_comparison_n_times(n_runs, seed=42):
     """
     rng = np.random.default_rng(seed)
     
-    noise_level = 0.1
-    
     # Fixed x array: 5 pixels
     x = np.linspace(-2.0, 2.0, 5)
     pixel_spacing = x[1] - x[0]
@@ -249,10 +249,14 @@ def run_comparison_n_times(n_runs, seed=42):
         
         true_params = [true_amp, true_mu, true_sigma]
         
-        # Generate noisy data
+        # Generate noisy data with Poisson noise
         y_true = gaussian(x, *true_params)
-        y = y_true + rng.normal(0, noise_level, len(x))
-        error = np.ones_like(y) * noise_level
+        # Poisson noise: variance = signal, so we sample from Poisson(y_true)
+        # Need to handle cases where y_true might be very small or negative
+        y_true_positive = np.maximum(y_true, 0.0)
+        y = rng.poisson(y_true_positive).astype(float)
+        # Error is sqrt of counts (Poisson statistics)
+        error = np.sqrt(np.maximum(y, 1.0))  # minimum error of 1 to avoid division by zero
         
         # Initial guesses from noisy data
         max_idx = np.argmax(y)
@@ -269,59 +273,60 @@ def run_comparison_n_times(n_runs, seed=42):
         results_list.append(result)
     
     # Print header
-    print("=" * 141)
-    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels)")
+    print("=" * 120)
+    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels, Poisson noise)")
     print(f"True params randomized: amp in [1,20], mu in [{x[0]:.2f},{x[-1]:.2f}], FWHM in [2,5] pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
-    print("=" * 141)
+    print("=" * 120)
     
     # Table header
-    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} {'sc_nfev/jac':>10} | "
-          f"{'mpfit_amp':>10} {'mpfit_mu':>10} {'mpfit_sig':>10} {'mp_nfev':>7} | "
-          f"{'amp_diff%':>9} {'mu_diff%':>9} {'sig_diff%':>9} {'mu_px':>8} | {'match':>5}")
-    print("-" * 141)
+    print(f"\n{'':>4} | {'True':^20} | {'Scipy':^38} | {'MPFIT':^38} |")
+    print(f"{'Run':>4} | {'amp':>6} {'mu':>6} {'sig':>6} | {'amp':>6} {'mu':>6} {'sig':>6} {'amp%':>5} {'mu_px':>5} {'sig%':>5} | {'amp':>6} {'mu':>6} {'sig':>6} {'amp%':>5} {'mu_px':>5} {'sig%':>5} | {'match':>5}")
+    print("-" * 114)
     
     # Print each run
     n_matches = 0
-    # Collect max differences
-    max_amp_pct = 0.0
-    max_mu_pct = 0.0
-    max_sig_pct = 0.0
-    max_mu_px = 0.0
     
     for r in results_list:
-        if r['scipy']['success'] and r['fmpfit']['success']:
+        tp = r['true_params']
+        scipy_ok = r['scipy']['success']
+        mpfit_ok = r['fmpfit']['success']
+        
+        # True params
+        true_str = f"{tp[0]:>6.1f} {tp[1]:>6.1f} {tp[2]:>6.1f}"
+        
+        # Scipy params
+        if scipy_ok:
             sp = r['scipy']['params']
+            sp_amp_pct = 100 * abs(sp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            sp_mu_px = abs(sp[1] - tp[1]) / pixel_spacing
+            sp_sig_pct = 100 * abs(sp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} {sp_amp_pct:>5.1f} {sp_mu_px:>5.2f} {sp_sig_pct:>5.1f}"
+        else:
+            scipy_str = f"{'-':>6} {'-':>6} {'-':>6} {'-':>5} {'-':>5} {'-':>5}"
+        
+        # Mpfit params
+        if mpfit_ok:
             mp = r['fmpfit']['params']
-            pct = r['comparison']['param_diff_percent']
+            mp_amp_pct = 100 * abs(mp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            mp_mu_px = abs(mp[1] - tp[1]) / pixel_spacing
+            mp_sig_pct = 100 * abs(mp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} {mp_amp_pct:>5.1f} {mp_mu_px:>5.2f} {mp_sig_pct:>5.1f}"
+        else:
+            mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} {'-':>5} {'-':>5} {'-':>5}"
+        
+        # Match status
+        if scipy_ok and mpfit_ok:
             match = r['comparison']['match']
-            sc_nfev = r['scipy']['nfev']
-            sc_njac = r['scipy']['njac']
-            sc_total = sc_nfev + sc_njac
-            mp_nfev = r['fmpfit']['nfev']
-            mu_diff_px = abs(r['comparison']['param_diff'][1] / pixel_spacing)
-            
-            # Track max differences
-            max_amp_pct = max(max_amp_pct, pct[0])
-            max_mu_pct = max(max_mu_pct, pct[1])
-            max_sig_pct = max(max_sig_pct, pct[2])
-            max_mu_px = max(max_mu_px, mu_diff_px)
-            
             if match:
                 n_matches += 1
-            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} {sc_total:>11} | "
-                  f"{mp[0]:>10.6f} {mp[1]:>10.6f} {mp[2]:>10.6f} {mp_nfev:>7} | "
-                  f"{pct[0]:>9.4f} {pct[1]:>9.4f} {pct[2]:>9.4f} {mu_diff_px:>8.2e} | {'Yes' if match else 'No':>5}")
+            match_str = 'Yes' if match else 'No'
         else:
-            scipy_err = 'OK' if r['scipy']['success'] else 'FAIL'
-            mpfit_err = 'OK' if r['fmpfit']['success'] else 'FAIL'
-            print(f"{r['run']:>4} | scipy: {scipy_err}, mpfit: {mpfit_err}")
+            match_str = '-'
+        
+        print(f"{r['run']:>4} | {true_str} | {scipy_str} | {mpfit_str} | {match_str:>5}")
     
-    print("-" * 141)
-    print(f" Max | {' '*10} {' '*10} {' '*10} {' '*11} | "
-          f"{' '*10} {' '*10} {' '*10} {' '*7} | "
-          f"{max_amp_pct:>9.4f} {max_mu_pct:>9.4f} {max_sig_pct:>9.4f} {max_mu_px:>8.2e} |")
-    print("-" * 141)
+    print("-" * 114)
     print(f"Summary: {n_matches}/{n_runs} runs matched (amp/sig: 0.1% tol, mu: 0.01 px tol)")
     
     return results_list
