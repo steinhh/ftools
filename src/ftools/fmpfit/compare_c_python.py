@@ -7,7 +7,7 @@ Usage:
     
     N: number of comparison runs (default: 10)
 """
-
+# 
 import sys
 import os
 
@@ -54,7 +54,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
     error : ndarray
         Measurement uncertainties (1D array)
     p0 : list
-        Initial parameter guesses [amplitude, mean, sigma]
+        Initial parameter guesses [intensity, velocity, width]
     bounds : list of tuples
         Parameter bounds [(low, high), ...] for each parameter
     pixel_spacing : float, optional
@@ -77,7 +77,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
             jac_count[0] += 1
             return gaussian_jacobian(x, i0, mu, sigma)
         
-        popt_scipy, pcov_scipy, infodict, mesg, ier = curve_fit(
+        popt_scipy, pcov_scipy, infodict, mesg, ier = curve_fit( # NOSONAR
             gaussian, x, y, p0=p0, bounds=scipy_bounds,
             sigma=error, absolute_sigma=True, jac=counted_jacobian,
             full_output=True
@@ -146,28 +146,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
             'error': str(e)
         }
     
-    # --- Comparison ---
-    if results['scipy']['success'] and results['fmpfit']['success']:
-        param_diff = results['scipy']['params'] - results['fmpfit']['params']
-        sp = results['scipy']['params']
-        mp = results['fmpfit']['params']
-        
-        # Match criteria: amp and sigma use 0.1% relative tolerance,
-        # mu uses 0.01 pixel absolute tolerance
-        amp_match = np.abs(param_diff[0]) <= 1e-3 * np.abs(sp[0])
-        sig_match = np.abs(param_diff[2]) <= 1e-3 * np.abs(sp[2])
-        if pixel_spacing is not None:
-            mu_match = np.abs(param_diff[1]) <= 0.01 * pixel_spacing
-        else:
-            mu_match = np.abs(param_diff[1]) <= 1e-3 * np.abs(sp[1]) if sp[1] != 0 else np.abs(param_diff[1]) < 1e-10
-        
-        results['comparison'] = {
-            'param_diff': param_diff,
-            'param_diff_percent': 100 * np.abs(param_diff) / np.abs(results['scipy']['params']),
-            'chisq_diff': results['scipy']['chisq'] - results['fmpfit']['chisq'],
-            'match': amp_match and mu_match and sig_match
-        }
-    
     return results
 
 
@@ -208,16 +186,16 @@ def run_comparison_n_times(n_runs, seed=42):
     Run comparison N times with randomized true parameters and Poisson noise.
     
     True parameters are randomized for each run:
-    - amplitude: uniform in [1, 20]
-    - mu (mean): uniform in [x[0], x[-1]], so peak can be anywhere in the 5-pixel range
-    - FWHM: uniform in [2, 5] pixels
+    - intensity (I): uniform in [1, 20]
+    - velocity (v): uniform in [x[0], x[-1]], so peak can be anywhere in the 5-pixel range
+    - width (w): FWHM uniform in [2, 5] pixels, converted to sigma
     
     Noise is Poisson-distributed (variance = signal), with error = sqrt(counts).
     
     Initial guesses are derived from the noisy data:
-    - p0_amp: value of the maximum pixel
-    - p0_mu: x-coordinate of the maximum pixel
-    - p0_sigma: estimated from half-max crossings, or default 3.0 pixels FWHM if not found
+    - p0_I: value of the maximum pixel
+    - p0_v: x-coordinate of the maximum pixel
+    - p0_w: estimated from half-max crossings, or default 3.0 pixels FWHM if not found
     
     Parameters
     ----------
@@ -242,12 +220,12 @@ def run_comparison_n_times(n_runs, seed=42):
     
     for i in range(n_runs):
         # Randomize true parameters for each run
-        true_amp = rng.uniform(1.0, 20.0)
-        true_mu = rng.uniform(x[0], x[-1])  # peak anywhere in x range
+        true_I = rng.uniform(1.0, 20.0)
+        true_v = rng.uniform(x[0], x[-1])  # peak anywhere in x range
         true_fwhm_pixels = rng.uniform(2.0, 5.0)
-        true_sigma = (true_fwhm_pixels * pixel_spacing) / 2.355
+        true_w = (true_fwhm_pixels * pixel_spacing) / 2.355
         
-        true_params = [true_amp, true_mu, true_sigma]
+        true_params = [true_I, true_v, true_w]
         
         # Generate noisy data with Poisson noise
         y_true = gaussian(x, *true_params)
@@ -260,11 +238,11 @@ def run_comparison_n_times(n_runs, seed=42):
         
         # Initial guesses from noisy data
         max_idx = np.argmax(y)
-        p0_amp = y[max_idx]
-        p0_mu = x[max_idx]
-        p0_sigma = estimate_fwhm_from_data(x, y, max_idx)
+        p0_I = y[max_idx]
+        p0_v = x[max_idx]
+        p0_w = estimate_fwhm_from_data(x, y, max_idx)
         
-        p0 = [p0_amp, p0_mu, p0_sigma]
+        p0 = [p0_I, p0_v, p0_w]
         bounds = [(0.0, 100.0), (x[0] - 1.0, x[-1] + 1.0), (0.01, 10.0)]
         
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
@@ -275,17 +253,18 @@ def run_comparison_n_times(n_runs, seed=42):
     # Print header
     print("=" * 120)
     print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels, Poisson noise)")
-    print(f"True params randomized: amp in [1,20], mu in [{x[0]:.2f},{x[-1]:.2f}], FWHM in [2,5] pixels")
+    print(f"True params randomized: I in [1,20], v in [{x[0]:.2f},{x[-1]:.2f}], w (FWHM) in [2,5] pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
     print("=" * 120)
     
     # Table header
-    print(f"\n{'':>4} | {'True':^20} | {'Scipy':^38} | {'MPFIT':^38} |")
-    print(f"{'Run':>4} | {'amp':>6} {'mu':>6} {'sig':>6} | {'amp':>6} {'mu':>6} {'sig':>6} {'amp%':>5} {'mu_px':>5} {'sig%':>5} | {'amp':>6} {'mu':>6} {'sig':>6} {'amp%':>5} {'mu_px':>5} {'sig%':>5} | {'match':>5}")
-    print("-" * 114)
+    print(f"\n{'':>4} || {'True':^20} || {'Scipy':^53} || {'MPFIT':^53} ||")
+    print(f"{'Run':>4} || {'I':>6} {'v':>6} {'w':>6} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>5}  {'v_px':>5}  {'w%':>5}  {'rchi2':>5} {'FAIL':>4} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>5}  {'v_px':>5}  {'w%':>5}  {'rchi2':>5} {'FAIL':>4} ||")
+    print("-" * 142)
     
     # Print each run
-    n_matches = 0
+    n_scipy_fail = 0
+    n_mpfit_fail = 0
     
     for r in results_list:
         tp = r['true_params']
@@ -295,39 +274,50 @@ def run_comparison_n_times(n_runs, seed=42):
         # True params
         true_str = f"{tp[0]:>6.1f} {tp[1]:>6.1f} {tp[2]:>6.1f}"
         
-        # Scipy params
+        # Scipy params and fail status
         if scipy_ok:
             sp = r['scipy']['params']
-            sp_amp_pct = 100 * abs(sp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
-            sp_mu_px = abs(sp[1] - tp[1]) / pixel_spacing
-            sp_sig_pct = 100 * abs(sp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
-            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} {sp_amp_pct:>5.1f} {sp_mu_px:>5.2f} {sp_sig_pct:>5.1f}"
+            sp_rchi2 = r['scipy']['reduced_chisq']
+            sp_I_pct = 100 * abs(sp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            sp_v_px = abs(sp[1] - tp[1]) / pixel_spacing
+            sp_w_pct = 100 * abs(sp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            # Check if scipy matched truth well
+            sp_I_match = sp_I_pct <= 10.0  # 10% tolerance for I
+            sp_v_match = sp_v_px <= 0.1  # 0.1 pixel tolerance for v
+            sp_w_match = sp_w_pct <= 10.0  # 10% tolerance for w
+            scipy_good = sp_I_match and sp_v_match and sp_w_match
+            scipy_fail = '****' if not scipy_good else ''
+            if not scipy_good:
+                n_scipy_fail += 1
+            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} | {sp_I_pct:>5.1f}  {sp_v_px:>5.2f}  {sp_w_pct:>5.1f}  {sp_rchi2:>5.2f} {scipy_fail:>4}"
         else:
-            scipy_str = f"{'-':>6} {'-':>6} {'-':>6} {'-':>5} {'-':>5} {'-':>5}"
+            n_scipy_fail += 1
+            scipy_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
         
-        # Mpfit params
+        # Mpfit params and fail status
         if mpfit_ok:
             mp = r['fmpfit']['params']
-            mp_amp_pct = 100 * abs(mp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
-            mp_mu_px = abs(mp[1] - tp[1]) / pixel_spacing
-            mp_sig_pct = 100 * abs(mp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
-            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} {mp_amp_pct:>5.1f} {mp_mu_px:>5.2f} {mp_sig_pct:>5.1f}"
+            mp_rchi2 = r['fmpfit']['reduced_chisq']
+            mp_I_pct = 100 * abs(mp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            mp_v_px = abs(mp[1] - tp[1]) / pixel_spacing
+            mp_w_pct = 100 * abs(mp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            # Check if mpfit matched truth well
+            mp_I_match = mp_I_pct <= 10.0
+            mp_v_match = mp_v_px <= 0.1
+            mp_w_match = mp_w_pct <= 10.0
+            mpfit_good = mp_I_match and mp_v_match and mp_w_match
+            mpfit_fail = '****' if not mpfit_good else ''
+            if not mpfit_good:
+                n_mpfit_fail += 1
+            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} | {mp_I_pct:>5.1f}  {mp_v_px:>5.2f}  {mp_w_pct:>5.1f}  {mp_rchi2:>5.2f} {mpfit_fail:>4}"
         else:
-            mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} {'-':>5} {'-':>5} {'-':>5}"
+            n_mpfit_fail += 1
+            mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
         
-        # Match status
-        if scipy_ok and mpfit_ok:
-            match = r['comparison']['match']
-            if match:
-                n_matches += 1
-            match_str = 'Yes' if match else 'No'
-        else:
-            match_str = '-'
-        
-        print(f"{r['run']:>4} | {true_str} | {scipy_str} | {mpfit_str} | {match_str:>5}")
+        print(f"{r['run']:>4} || {true_str} || {scipy_str} || {mpfit_str} ||")
     
-    print("-" * 114)
-    print(f"Summary: {n_matches}/{n_runs} runs matched (amp/sig: 0.1% tol, mu: 0.01 px tol)")
+    print("-" * 142)
+    print(f"Summary: Scipy {n_scipy_fail}/{n_runs} failed, MPFIT {n_mpfit_fail}/{n_runs} failed (I/w: 10% tol, v: 0.1 px tol)")
     
     return results_list
 

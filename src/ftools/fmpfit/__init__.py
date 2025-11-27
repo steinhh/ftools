@@ -45,8 +45,8 @@ class MPFitResult:
     c_time : float
         Time spent in C extension (seconds)
     """
-    def __init__(self, best_params, bestnorm, orignorm, niter, nfev, status,
-                 npar, nfree, npegged, nfunc, resid, xerror, covar, c_time=0.0):
+    def __init__(self, best_params, bestnorm, orignorm, niter, nfev, status,     # NOSONAR
+                 npar, nfree, npegged, nfunc, resid, xerror, covar, c_time=0.0): # NOSONAR
         self.best_params = best_params
         self.bestnorm = bestnorm
         self.orignorm = orignorm
@@ -67,7 +67,7 @@ class MPFitResult:
                 f"bestnorm={self.bestnorm:.6e})")
 
 
-def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, 
+def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
                     xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
                     maxiter=2000, quiet=1):
     """
@@ -197,7 +197,7 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None,
     )
 
 
-def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10,
+def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSONAR
                     ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
     """MPFIT wrapper function for float32 (single precision) fitting.
     Uses analytical derivatives (Jacobian) for the Gaussian model internally,
@@ -309,9 +309,5 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10,
         covar=result_dict['covar'],
         c_time=c_time
     )
-
-
-    return result
-
 
 __all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'MPFitResult']
