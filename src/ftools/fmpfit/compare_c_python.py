@@ -1,7 +1,23 @@
 """Module for comparing fitting results using different optimization methods.
 
 Compares scipy.optimize.curve_fit with fmpfit_f64_wrap for Gaussian fitting.
+
+Usage:
+    python compare_c_python.py [N]
+    
+    N: number of comparison runs (default: 10)
 """
+
+import sys
+import os
+
+# Handle imports when run directly from within the package
+if __name__ == "__main__":
+    # Add the src directory to path to allow direct execution
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
+    _src_dir = os.path.dirname(os.path.dirname(os.path.dirname(_this_dir)))
+    if _src_dir not in sys.path:
+        sys.path.insert(0, _src_dir)
 
 import numpy as np
 from scipy.optimize import curve_fit
