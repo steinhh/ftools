@@ -171,43 +171,109 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
     return results
 
 
+def estimate_fwhm_from_data(x, y, max_idx):
+    """Estimate FWHM from noisy data by finding half-max crossings."""
+    max_val = y[max_idx]
+    half_max = max_val / 2
+    
+    # Find first pixel to the left where value drops below half-max
+    left_idx = None
+    for j in range(max_idx - 1, -1, -1):
+        if y[j] <= half_max:
+            left_idx = j
+            break
+    
+    # Find first pixel to the right where value drops below half-max
+    right_idx = None
+    for j in range(max_idx + 1, len(y)):
+        if y[j] <= half_max:
+            right_idx = j
+            break
+    
+    # Estimate FWHM
+    if left_idx is not None and right_idx is not None:
+        fwhm_pixels = right_idx - left_idx
+    else:
+        fwhm_pixels = 3.0  # default
+    
+    # Convert to sigma: FWHM = 2.355 * sigma
+    pixel_spacing = x[1] - x[0]
+    fwhm = fwhm_pixels * pixel_spacing
+    sigma = fwhm / 2.355
+    return sigma
+
+
 def run_comparison_n_times(n_runs, seed=42):
-    """Run comparison N times with 5-pixel data covering the FWHM."""
+    """
+    Run comparison N times with randomized true parameters.
+    
+    True parameters are randomized for each run:
+    - amplitude: uniform in [1, 20]
+    - mu (mean): uniform in [x[0], x[-1]], so peak can be anywhere in the 5-pixel range
+    - FWHM: uniform in [2, 5] pixels
+    
+    Initial guesses are derived from the noisy data:
+    - p0_amp: value of the maximum pixel
+    - p0_mu: x-coordinate of the maximum pixel
+    - p0_sigma: estimated from half-max crossings, or default 3.0 pixels FWHM if not found
+    
+    Parameters
+    ----------
+    n_runs : int
+        Number of comparison runs to perform
+    seed : int, optional
+        Random seed for reproducibility (default: 42)
+    
+    Returns
+    -------
+    list
+        List of result dictionaries from each run
+    """
     rng = np.random.default_rng(seed)
     
-    # True parameters
-    true_params = [2.5, 0.0, 0.8]  # amplitude, mean, sigma
     noise_level = 0.1
     
-    # FWHM = 2 * sqrt(2 * ln(2)) * sigma ~ 2.355 * sigma
-    # Cover FWHM with 5 pixels centered on mean
-    fwhm = 2.355 * true_params[2]
-    half_fwhm = fwhm / 2
-    x = np.linspace(true_params[1] - half_fwhm, true_params[1] + half_fwhm, 5)
-    pixel_spacing = x[1] - x[0]  # spacing between pixels
-    
-    # Initial guess and bounds
-    p0 = [2.0, 0.0, 1.0]
-    bounds = [(0.0, 10.0), (-2.0, 2.0), (0.1, 5.0)]
+    # Fixed x array: 5 pixels
+    x = np.linspace(-2.0, 2.0, 5)
+    pixel_spacing = x[1] - x[0]
     
     # Storage for results
     results_list = []
     
     for i in range(n_runs):
+        # Randomize true parameters for each run
+        true_amp = rng.uniform(1.0, 20.0)
+        true_mu = rng.uniform(x[0], x[-1])  # peak anywhere in x range
+        true_fwhm_pixels = rng.uniform(2.0, 5.0)
+        true_sigma = (true_fwhm_pixels * pixel_spacing) / 2.355
+        
+        true_params = [true_amp, true_mu, true_sigma]
+        
+        # Generate noisy data
         y_true = gaussian(x, *true_params)
         y = y_true + rng.normal(0, noise_level, len(x))
         error = np.ones_like(y) * noise_level
         
+        # Initial guesses from noisy data
+        max_idx = np.argmax(y)
+        p0_amp = y[max_idx]
+        p0_mu = x[max_idx]
+        p0_sigma = estimate_fwhm_from_data(x, y, max_idx)
+        
+        p0 = [p0_amp, p0_mu, p0_sigma]
+        bounds = [(0.0, 100.0), (x[0] - 1.0, x[-1] + 1.0), (0.01, 10.0)]
+        
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
         result['run'] = i + 1
+        result['true_params'] = true_params
         results_list.append(result)
     
     # Print header
-    print("=" * 120)
-    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels covering FWHM)")
-    print(f"True parameters: amplitude={true_params[0]}, mean={true_params[1]}, sigma={true_params[2]}")
-    print(f"FWHM = {fwhm:.4f}, x = {x}")
-    print("=" * 120)
+    print("=" * 141)
+    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels)")
+    print(f"True params randomized: amp in [1,20], mu in [{x[0]:.2f},{x[-1]:.2f}], FWHM in [2,5] pixels")
+    print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
+    print("=" * 141)
     
     # Table header
     print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} {'sc_nfev/jac':>10} | "
