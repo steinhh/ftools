@@ -52,9 +52,10 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
     # --- scipy.optimize.curve_fit ---
     try:
         scipy_bounds = ([b[0] for b in bounds], [b[1] for b in bounds])
-        popt_scipy, pcov_scipy = curve_fit(
+        popt_scipy, pcov_scipy, infodict, mesg, ier = curve_fit(
             gaussian, x, y, p0=p0, bounds=scipy_bounds,
-            sigma=error, absolute_sigma=True, jac=gaussian_jacobian
+            sigma=error, absolute_sigma=True, jac=gaussian_jacobian,
+            full_output=True
         )
         perr_scipy = np.sqrt(np.diag(pcov_scipy))
         residuals_scipy = y - gaussian(x, *popt_scipy)
@@ -67,6 +68,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
             'errors': perr_scipy,
             'chisq': chisq_scipy,
             'reduced_chisq': reduced_chisq_scipy,
+            'nfev': infodict.get('nfev', 0),
             'success': True
         }
     except Exception as e:
@@ -75,11 +77,14 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
             'errors': np.array([np.nan] * len(p0)),
             'chisq': np.nan,
             'reduced_chisq': np.nan,
+            'nfev': 0,
             'success': False,
             'error': str(e)
         }
     
     # --- fmpfit_f64_wrap ---
+    # Note: fmpfit uses analytical derivatives for the Gaussian model internally.
+    # The nfev count includes both residual and Jacobian evaluations.
     try:
         parinfo = [
             {'value': p0[i], 'limits': list(bounds[i])}
@@ -88,7 +93,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
         functkw = {'x': x, 'y': y, 'error': error}
         
         result_mpfit = fmpfit_f64_wrap(
-            deviate_type=0,  # Gaussian
+            deviate_type=0,  # Gaussian (uses analytical derivatives)
             parinfo=parinfo,
             functkw=functkw
         )
@@ -165,10 +170,10 @@ def run_comparison_n_times(n_runs, seed=42):
     print("=" * 120)
     
     # Table header
-    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} | "
-          f"{'mpfit_amp':>10} {'mpfit_mu':>10} {'mpfit_sig':>10} | "
+    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} {'sc_nfev':>7} | "
+          f"{'mpfit_amp':>10} {'mpfit_mu':>10} {'mpfit_sig':>10} {'mp_nfev':>7} | "
           f"{'amp_diff%':>9} {'mu_diff%':>9} {'sig_diff%':>9} | {'match':>5}")
-    print("-" * 120)
+    print("-" * 130)
     
     # Print each run
     n_matches = 0
@@ -178,17 +183,19 @@ def run_comparison_n_times(n_runs, seed=42):
             mp = r['fmpfit']['params']
             pct = r['comparison']['param_diff_percent']
             match = r['comparison']['match']
+            sc_nfev = r['scipy']['nfev']
+            mp_nfev = r['fmpfit']['nfev']
             if match:
                 n_matches += 1
-            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} | "
-                  f"{mp[0]:>10.6f} {mp[1]:>10.6f} {mp[2]:>10.6f} | "
+            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} {sc_nfev:>7} | "
+                  f"{mp[0]:>10.6f} {mp[1]:>10.6f} {mp[2]:>10.6f} {mp_nfev:>7} | "
                   f"{pct[0]:>9.4f} {pct[1]:>9.4f} {pct[2]:>9.4f} | {'Yes' if match else 'No':>5}")
         else:
             scipy_err = 'OK' if r['scipy']['success'] else 'FAIL'
             mpfit_err = 'OK' if r['fmpfit']['success'] else 'FAIL'
             print(f"{r['run']:>4} | scipy: {scipy_err}, mpfit: {mpfit_err}")
     
-    print("-" * 120)
+    print("-" * 130)
     print(f"Summary: {n_matches}/{n_runs} runs matched (within 0.1% tolerance)")
     
     return results_list

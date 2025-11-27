@@ -73,10 +73,13 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None,
     """
     Levenberg-Marquardt least-squares minimization (float64)
     
+    Uses analytical derivatives (Jacobian) for the Gaussian model internally,
+    which provides faster and more accurate convergence than finite differences.
+    
     Parameters
     ----------
     deviate_type : int
-        Model type: 0 = Gaussian
+        Model type: 0 = Gaussian (uses analytical derivatives)
     parinfo : list of dict
         Parameter info, each dict contains:
         - 'value': float, initial parameter value
@@ -197,6 +200,8 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None,
 def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10,
                     ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
     """MPFIT wrapper function for float32 (single precision) fitting.
+    Uses analytical derivatives (Jacobian) for the Gaussian model internally,
+    which provides faster and more accurate convergence than finite differences.
 
     Same as fmpfit_f64_wrap but uses float32 precision internally for faster computation
     and lower memory usage.
@@ -204,7 +209,7 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10,
     Parameters
     ----------
     deviate_type : int
-        Model type: 0 = Gaussian
+        Model type: 0 = Gaussian (uses analytical derivatives)
     parinfo : list of dict
         Parameter info, each dict contains:
         - 'value': float, initial parameter value
