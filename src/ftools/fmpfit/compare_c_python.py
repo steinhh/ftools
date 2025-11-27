@@ -176,7 +176,8 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
 
 def plot_fit_comparison(result, output_dir=None):
     """
-    Create a PNG file showing scipy (left) and mpfit (right) fits.
+    Create a PNG file showing both scipy and mpfit fits on a single plot,
+    with a residuals panel below.
     
     Parameters
     ----------
@@ -196,73 +197,125 @@ def plot_fit_comparison(result, output_dir=None):
     error = result['error']
     tp = result['true_params']
     p0 = result['p0']
+    pixel_spacing = x[1] - x[0]
     
     # High-resolution x for smooth fit curves (10x resolution)
     x_fine = np.linspace(x[0], x[-1], len(x) * 10)
     
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    # Create figure with main plot (3/4) and residuals panel (1/4)
+    fig, (ax_main, ax_resid) = plt.subplots(2, 1, figsize=(8, 7), 
+                                             gridspec_kw={'height_ratios': [3, 1]},
+                                             sharex=True)
     
     # Common settings
     bar_width = (x[1] - x[0]) * 0.6
     
-    for ax_idx, (method, label) in enumerate([('scipy', 'Scipy'), ('fmpfit', 'MPFIT')]):
-        ax = axes[ax_idx]
-        
-        # Plot data as bar chart with error bars
-        ax.bar(x, y, width=bar_width, alpha=0.6, color='steelblue', label='Data')
-        ax.errorbar(x, y, yerr=error, fmt='none', ecolor='black', capsize=3)
-        
-        # Plot true Gaussian (grey)
-        y_true_fine = gaussian(x_fine, *tp)
-        ax.plot(x_fine, y_true_fine, color='grey', linestyle='--', linewidth=2, label='True')
-        
-        # Plot initial guess (dashed green)
-        y_init_fine = gaussian(x_fine, *p0)
-        ax.plot(x_fine, y_init_fine, color='green', linestyle='--', linewidth=1.5, label='Init')
-        
-        # Plot fitted Gaussian if successful (green)
-        if result[method]['success']:
-            params = result[method]['params']
-            y_fit_fine = gaussian(x_fine, *params)
-            ax.plot(x_fine, y_fit_fine, color='green', linestyle='-', linewidth=2, label=f'{label} fit')
-            rchi2 = result[method]['reduced_chisq']
-            # Add text in upper left with true and fitted params
-            text_lines = (
-                f'True:  I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}\n'
-                f'Fit:   I={params[0]:.1f}, v={params[1]:.2f}, w={params[2]:.2f}\n'
-                f'rchi2={rchi2:.2f}'
-            )
-            ax.text(0.02, 0.98, text_lines, transform=ax.transAxes, fontsize=9,
-                    verticalalignment='top', horizontalalignment='left',
-                    fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        else:
-            # Build failure reason
-            method_result = result[method]
-            if 'error' in method_result:
-                fail_reason = method_result['error']
-                # Truncate long error messages
-                if len(fail_reason) > 40:
-                    fail_reason = fail_reason[:37] + '...'
-            elif 'status' in method_result:
-                status = method_result['status']
-                if status in MPFIT_STATUS:
-                    fail_reason = MPFIT_STATUS[status]
-                else:
-                    fail_reason = f'status={status}'
-            else:
-                fail_reason = 'unknown'
-            
-            ax.text(0.02, 0.98, f'True:  I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}\nFit:   FAILED\n{fail_reason}',
-                    transform=ax.transAxes, fontsize=9, verticalalignment='top', horizontalalignment='left',
-                    fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        ax.set_title(label)
-        ax.set_xlabel('x (pixels)')
-        ax.set_ylabel('Intensity')
-        ax.legend(loc='upper right')
-        ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
+    # === MAIN PLOT ===
+    # Plot data as bar chart with error bars
+    ax_main.bar(x, y, width=bar_width, alpha=0.6, color='steelblue', label='Data')
+    ax_main.errorbar(x, y, yerr=error, fmt='none', ecolor='black', capsize=3)
     
-    fig.suptitle(f'Run {run_num}', fontsize=12)
+    # Plot true Gaussian
+    y_true_fine = gaussian(x_fine, *tp)
+    y_true_at_x = gaussian(x, *tp)
+    ax_main.plot(x_fine, y_true_fine, color='grey', linestyle='--', linewidth=2, label='True')
+    
+    # Build text for display (with asterisks for out-of-tolerance values)
+    text_lines = [f'True:   I={tp[0]:>6.1f}   v={tp[1]:>5.2f}   w={tp[2]:>4.2f}']
+    
+    # Plot scipy fit first (red) so it gets covered by mpfit if identical
+    y_scipy_at_x = None
+    if result['scipy']['success']:
+        sp = result['scipy']['params']
+        y_scipy_fine = gaussian(x_fine, *sp)
+        y_scipy_at_x = gaussian(x, *sp)
+        ax_main.plot(x_fine, y_scipy_fine, color='red', linestyle='-', linewidth=2, label='Scipy')
+        sp_rchi2 = result['scipy']['reduced_chisq']
+        # Check tolerances and add asterisks
+        sp_I_ok = 100 * abs(sp[0] - tp[0]) / tp[0] <= 10.0 if tp[0] != 0 else True
+        sp_v_ok = abs(sp[1] - tp[1]) / pixel_spacing <= 0.1
+        sp_w_ok = 100 * abs(sp[2] - tp[2]) / tp[2] <= 10.0 if tp[2] != 0 else True
+        sp_I_mark = ' ' if sp_I_ok else '*'
+        sp_v_mark = ' ' if sp_v_ok else '*'
+        sp_w_mark = ' ' if sp_w_ok else '*'
+        text_lines.append(f'Scipy:  I={sp[0]:>6.1f}{sp_I_mark}  v={sp[1]:>5.2f}{sp_v_mark}  w={sp[2]:>4.2f}{sp_w_mark}  rchi2={sp_rchi2:.2f}')
+    else:
+        # Get failure reason for scipy
+        if 'error' in result['scipy']:
+            fail_reason = result['scipy']['error']
+            if len(fail_reason) > 30:
+                fail_reason = fail_reason[:27] + '...'
+        else:
+            fail_reason = 'unknown'
+        text_lines.append(f'Scipy:  FAILED ({fail_reason})')
+    
+    # Plot mpfit fit on top (green)
+    y_mpfit_at_x = None
+    if result['fmpfit']['success']:
+        mp = result['fmpfit']['params']
+        y_mpfit_fine = gaussian(x_fine, *mp)
+        y_mpfit_at_x = gaussian(x, *mp)
+        ax_main.plot(x_fine, y_mpfit_fine, color='green', linestyle='-', linewidth=2, label='MPFIT')
+        mp_rchi2 = result['fmpfit']['reduced_chisq']
+        # Check tolerances and add asterisks
+        mp_I_ok = 100 * abs(mp[0] - tp[0]) / tp[0] <= 10.0 if tp[0] != 0 else True
+        mp_v_ok = abs(mp[1] - tp[1]) / pixel_spacing <= 0.1
+        mp_w_ok = 100 * abs(mp[2] - tp[2]) / tp[2] <= 10.0 if tp[2] != 0 else True
+        mp_I_mark = ' ' if mp_I_ok else '*'
+        mp_v_mark = ' ' if mp_v_ok else '*'
+        mp_w_mark = ' ' if mp_w_ok else '*'
+        text_lines.append(f'MPFIT:  I={mp[0]:>6.1f}{mp_I_mark}  v={mp[1]:>5.2f}{mp_v_mark}  w={mp[2]:>4.2f}{mp_w_mark}  rchi2={mp_rchi2:.2f}')
+    else:
+        # Get failure reason for mpfit
+        if 'error' in result['fmpfit']:
+            fail_reason = result['fmpfit']['error']
+            if len(fail_reason) > 30:
+                fail_reason = fail_reason[:27] + '...'
+        elif 'status' in result['fmpfit']:
+            status = result['fmpfit']['status']
+            if status in MPFIT_STATUS:
+                fail_reason = MPFIT_STATUS[status]
+            else:
+                fail_reason = f'status={status}'
+        else:
+            fail_reason = 'unknown'
+        text_lines.append(f'MPFIT:  FAILED ({fail_reason})')
+    
+    # Add text box
+    ax_main.text(0.02, 0.98, '\n'.join(text_lines), transform=ax_main.transAxes, fontsize=9,
+                 verticalalignment='top', horizontalalignment='left',
+                 fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    ax_main.set_title(f'Run {run_num}')
+    ax_main.set_ylabel('Intensity')
+    ax_main.legend(loc='upper right')
+    
+    # === RESIDUALS PLOT ===
+    # Zero line
+    ax_resid.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    
+    # 1-sigma error band (shaded grey)
+    ax_resid.fill_between(x, -error, error, alpha=0.3, color='grey', label='1-sigma')
+    
+    # Noise: data - true (grey markers)
+    noise = y - y_true_at_x
+    ax_resid.scatter(x, noise, color='grey', s=50, zorder=3, label='Noise', marker='o')
+    
+    # Scipy residuals (red markers) - offset slightly left
+    if y_scipy_at_x is not None:
+        resid_scipy = y - y_scipy_at_x
+        ax_resid.scatter(x - 0.1, resid_scipy, color='red', s=40, zorder=4, label='Scipy', marker='s')
+    
+    # MPFIT residuals (green markers) - offset slightly right
+    if y_mpfit_at_x is not None:
+        resid_mpfit = y - y_mpfit_at_x
+        ax_resid.scatter(x + 0.1, resid_mpfit, color='green', s=40, zorder=5, label='MPFIT', marker='^')
+    
+    ax_resid.set_xlabel('x (pixels)')
+    ax_resid.set_ylabel('Residual')
+    ax_resid.set_xlim(x[0] - 0.5, x[-1] + 0.5)
+    ax_resid.legend(loc='upper right', fontsize=8, ncol=4)
+    
     plt.tight_layout()
     
     # Save PNG
@@ -304,7 +357,7 @@ def estimate_fwhm_from_data(x, y, max_idx):
     return sigma
 
 
-def run_comparison_n_times(n_runs, seed=42):
+def run_comparison_n_times(n_runs, seed=41):
     """
     Run comparison N times with randomized true parameters and Poisson noise.
     
@@ -340,13 +393,18 @@ def run_comparison_n_times(n_runs, seed=42):
     
     # Storage for results
     results_list = []
-    
+
+    true_I_range = (2.0, 10.0)
+    true_v_range = (x[0] + 0.5 * pixel_spacing, x[-1] - 0.5 * pixel_spacing)
+    true_fwhm_range = (2, 5.0) # FWHM from 2 to 5 pixels (5 pixels = full x range)
+
     for i in range(n_runs):
         # Randomize true parameters for each run
-        true_I = rng.uniform(10.0, 200.0)
+        true_I = rng.uniform(*true_I_range)
         # Restrict true_v to be half a pixel from edges
-        true_v = rng.uniform(x[0] + 0.5 * pixel_spacing, x[-1] - 0.5 * pixel_spacing)
-        true_fwhm_pixels = rng.uniform(2.0, 5.0)
+        true_v = rng.uniform(*true_v_range)
+        
+        true_fwhm_pixels = rng.uniform(*true_fwhm_range)
         true_w = (true_fwhm_pixels * pixel_spacing) / 2.355
         
         true_params = [true_I, true_v, true_w]
@@ -372,7 +430,9 @@ def run_comparison_n_times(n_runs, seed=42):
         p0_w = estimate_fwhm_from_data(x, y, max_idx)
         
         p0 = [p0_I, p0_v, p0_w]
-        bounds = [(0.0, 100.0), (x[0] - 1.0, x[-1] + 1.0), (0.01, 10.0)]
+        # Amplitude upper bound: 2 sigma (Poisson) above max measured value
+        I_upper = y[max_idx] + 2.0 * error[max_idx]
+        bounds = [(0.0, I_upper), (x[0], x[-1]), (0.7, 5.0)]
         
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
         result['run'] = i + 1
@@ -388,7 +448,7 @@ def run_comparison_n_times(n_runs, seed=42):
     v_max = x[-1] - 0.5 * pixel_spacing
     print("=" * 120)
     print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels, Poisson noise)")
-    print(f"True params randomized: I in [10,200], v in [{v_min:.2f},{v_max:.2f}], w (FWHM) in [2,5] pixels")
+    print(f"True params randomized: I in [10,200], v in [{v_min:.2f},{v_max:.2f}], w (FWHM) in [1,5] pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
     print("=" * 120)
     
@@ -424,7 +484,11 @@ def run_comparison_n_times(n_runs, seed=42):
             scipy_fail = '****' if not scipy_good else ''
             if not scipy_good:
                 n_scipy_fail += 1
-            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} | {sp_I_pct:>5.1f}  {sp_v_px:>5.2f}  {sp_w_pct:>5.1f}  {sp_rchi2:>5.2f} {scipy_fail:>4}"
+            # Add asterisk after out-of-bounds values, space otherwise
+            sp_I_mark = '*' if not sp_I_match else ' '
+            sp_v_mark = '*' if not sp_v_match else ' '
+            sp_w_mark = '*' if not sp_w_match else ' '
+            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} | {sp_I_pct:>5.1f}{sp_I_mark} {sp_v_px:>5.2f}{sp_v_mark} {sp_w_pct:>5.1f}{sp_w_mark} {sp_rchi2:>5.2f} {scipy_fail:>4}"
         else:
             n_scipy_fail += 1
             scipy_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
@@ -444,7 +508,11 @@ def run_comparison_n_times(n_runs, seed=42):
             mpfit_fail = '****' if not mpfit_good else ''
             if not mpfit_good:
                 n_mpfit_fail += 1
-            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} | {mp_I_pct:>5.1f}  {mp_v_px:>5.2f}  {mp_w_pct:>5.1f}  {mp_rchi2:>5.2f} {mpfit_fail:>4}"
+            # Add asterisk after out-of-bounds values, space otherwise
+            mp_I_mark = '*' if not mp_I_match else ' '
+            mp_v_mark = '*' if not mp_v_match else ' '
+            mp_w_mark = '*' if not mp_w_match else ' '
+            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} | {mp_I_pct:>5.1f}{mp_I_mark} {mp_v_px:>5.2f}{mp_v_mark} {mp_w_pct:>5.1f}{mp_w_mark} {mp_rchi2:>5.2f} {mpfit_fail:>4}"
         else:
             n_mpfit_fail += 1
             mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
@@ -454,9 +522,10 @@ def run_comparison_n_times(n_runs, seed=42):
     print("-" * 142)
     print(f"Summary: Scipy {n_scipy_fail}/{n_runs} failed, MPFIT {n_mpfit_fail}/{n_runs} failed (I/w: 10% tol, v: 0.1 px tol)")
     
-    # Generate plots for the first 10 runs
-    print(f"\nGenerating plots for first {min(10, n_runs)} runs...")
-    for r in results_list[:10]:
+    # Generate plots for the first num_plot runs
+    num_plot = 20
+    print(f"\nGenerating plots for first {min(num_plot, n_runs)} runs...")
+    for r in results_list[:num_plot]:
         plot_fit_comparison(r)
     
     return results_list
