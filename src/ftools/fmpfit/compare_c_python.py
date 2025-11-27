@@ -41,7 +41,7 @@ def gaussian_jacobian(x, i0, mu, sigma):
     return np.stack((d_i0, d_mu, d_sigma), axis=-1)
 
 
-def compare_scipy_fmpfit(x, y, error, p0, bounds):
+def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
     """
     Compare fitting results from scipy.optimize.curve_fit and fmpfit_f64_wrap.
     
@@ -57,6 +57,8 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
         Initial parameter guesses [amplitude, mean, sigma]
     bounds : list of tuples
         Parameter bounds [(low, high), ...] for each parameter
+    pixel_spacing : float, optional
+        Pixel spacing for computing mu difference in pixels
     
     Returns
     -------
@@ -68,9 +70,16 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
     # --- scipy.optimize.curve_fit ---
     try:
         scipy_bounds = ([b[0] for b in bounds], [b[1] for b in bounds])
+        
+        # Wrap jacobian to count calls
+        jac_count = [0]  # Use list to allow mutation in nested function
+        def counted_jacobian(x, i0, mu, sigma):
+            jac_count[0] += 1
+            return gaussian_jacobian(x, i0, mu, sigma)
+        
         popt_scipy, pcov_scipy, infodict, mesg, ier = curve_fit(
             gaussian, x, y, p0=p0, bounds=scipy_bounds,
-            sigma=error, absolute_sigma=True, jac=gaussian_jacobian,
+            sigma=error, absolute_sigma=True, jac=counted_jacobian,
             full_output=True
         )
         perr_scipy = np.sqrt(np.diag(pcov_scipy))
@@ -85,6 +94,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
             'chisq': chisq_scipy,
             'reduced_chisq': reduced_chisq_scipy,
             'nfev': infodict.get('nfev', 0),
+            'njac': jac_count[0],
             'success': True
         }
     except Exception as e:
@@ -94,6 +104,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
             'chisq': np.nan,
             'reduced_chisq': np.nan,
             'nfev': 0,
+            'njac': 0,
             'success': False,
             'error': str(e)
         }
@@ -138,11 +149,23 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds):
     # --- Comparison ---
     if results['scipy']['success'] and results['fmpfit']['success']:
         param_diff = results['scipy']['params'] - results['fmpfit']['params']
+        sp = results['scipy']['params']
+        mp = results['fmpfit']['params']
+        
+        # Match criteria: amp and sigma use 0.1% relative tolerance,
+        # mu uses 0.01 pixel absolute tolerance
+        amp_match = np.abs(param_diff[0]) <= 1e-3 * np.abs(sp[0])
+        sig_match = np.abs(param_diff[2]) <= 1e-3 * np.abs(sp[2])
+        if pixel_spacing is not None:
+            mu_match = np.abs(param_diff[1]) <= 0.01 * pixel_spacing
+        else:
+            mu_match = np.abs(param_diff[1]) <= 1e-3 * np.abs(sp[1]) if sp[1] != 0 else np.abs(param_diff[1]) < 1e-10
+        
         results['comparison'] = {
             'param_diff': param_diff,
             'param_diff_percent': 100 * np.abs(param_diff) / np.abs(results['scipy']['params']),
             'chisq_diff': results['scipy']['chisq'] - results['fmpfit']['chisq'],
-            'match': np.allclose(results['scipy']['params'], results['fmpfit']['params'], rtol=1e-3)
+            'match': amp_match and mu_match and sig_match
         }
     
     return results
@@ -161,6 +184,7 @@ def run_comparison_n_times(n_runs, seed=42):
     fwhm = 2.355 * true_params[2]
     half_fwhm = fwhm / 2
     x = np.linspace(true_params[1] - half_fwhm, true_params[1] + half_fwhm, 5)
+    pixel_spacing = x[1] - x[0]  # spacing between pixels
     
     # Initial guess and bounds
     p0 = [2.0, 0.0, 1.0]
@@ -174,7 +198,7 @@ def run_comparison_n_times(n_runs, seed=42):
         y = y_true + rng.normal(0, noise_level, len(x))
         error = np.ones_like(y) * noise_level
         
-        result = compare_scipy_fmpfit(x, y, error, p0, bounds)
+        result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
         result['run'] = i + 1
         results_list.append(result)
     
@@ -186,13 +210,19 @@ def run_comparison_n_times(n_runs, seed=42):
     print("=" * 120)
     
     # Table header
-    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} {'sc_nfev':>7} | "
+    print(f"\n{'Run':>4} | {'scipy_amp':>10} {'scipy_mu':>10} {'scipy_sig':>10} {'sc_nfev/jac':>10} | "
           f"{'mpfit_amp':>10} {'mpfit_mu':>10} {'mpfit_sig':>10} {'mp_nfev':>7} | "
-          f"{'amp_diff%':>9} {'mu_diff%':>9} {'sig_diff%':>9} | {'match':>5}")
-    print("-" * 130)
+          f"{'amp_diff%':>9} {'mu_diff%':>9} {'sig_diff%':>9} {'mu_px':>8} | {'match':>5}")
+    print("-" * 141)
     
     # Print each run
     n_matches = 0
+    # Collect max differences
+    max_amp_pct = 0.0
+    max_mu_pct = 0.0
+    max_sig_pct = 0.0
+    max_mu_px = 0.0
+    
     for r in results_list:
         if r['scipy']['success'] and r['fmpfit']['success']:
             sp = r['scipy']['params']
@@ -200,19 +230,33 @@ def run_comparison_n_times(n_runs, seed=42):
             pct = r['comparison']['param_diff_percent']
             match = r['comparison']['match']
             sc_nfev = r['scipy']['nfev']
+            sc_njac = r['scipy']['njac']
+            sc_total = sc_nfev + sc_njac
             mp_nfev = r['fmpfit']['nfev']
+            mu_diff_px = abs(r['comparison']['param_diff'][1] / pixel_spacing)
+            
+            # Track max differences
+            max_amp_pct = max(max_amp_pct, pct[0])
+            max_mu_pct = max(max_mu_pct, pct[1])
+            max_sig_pct = max(max_sig_pct, pct[2])
+            max_mu_px = max(max_mu_px, mu_diff_px)
+            
             if match:
                 n_matches += 1
-            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} {sc_nfev:>7} | "
+            print(f"{r['run']:>4} | {sp[0]:>10.6f} {sp[1]:>10.6f} {sp[2]:>10.6f} {sc_total:>11} | "
                   f"{mp[0]:>10.6f} {mp[1]:>10.6f} {mp[2]:>10.6f} {mp_nfev:>7} | "
-                  f"{pct[0]:>9.4f} {pct[1]:>9.4f} {pct[2]:>9.4f} | {'Yes' if match else 'No':>5}")
+                  f"{pct[0]:>9.4f} {pct[1]:>9.4f} {pct[2]:>9.4f} {mu_diff_px:>8.2e} | {'Yes' if match else 'No':>5}")
         else:
             scipy_err = 'OK' if r['scipy']['success'] else 'FAIL'
             mpfit_err = 'OK' if r['fmpfit']['success'] else 'FAIL'
             print(f"{r['run']:>4} | scipy: {scipy_err}, mpfit: {mpfit_err}")
     
-    print("-" * 130)
-    print(f"Summary: {n_matches}/{n_runs} runs matched (within 0.1% tolerance)")
+    print("-" * 141)
+    print(f" Max | {' '*10} {' '*10} {' '*10} {' '*11} | "
+          f"{' '*10} {' '*10} {' '*10} {' '*7} | "
+          f"{max_amp_pct:>9.4f} {max_mu_pct:>9.4f} {max_sig_pct:>9.4f} {max_mu_px:>8.2e} |")
+    print("-" * 141)
+    print(f"Summary: {n_matches}/{n_runs} runs matched (amp/sig: 0.1% tol, mu: 0.01 px tol)")
     
     return results_list
 
