@@ -26,6 +26,28 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for PNG output
 import matplotlib.pyplot as plt
 
+# MPFIT status codes from mpfit.h
+MPFIT_STATUS = {
+    0: 'General input parameter error',
+    -16: 'User function produced non-finite values',
+    -17: 'No user function was supplied',
+    -18: 'No user data points were supplied',
+    -19: 'No free parameters',
+    -20: 'Memory allocation error',
+    -21: 'Initial values inconsistent w constraints',
+    -22: 'Initial constraints inconsistent',
+    -23: 'General input parameter error',
+    -24: 'Not enough degrees of freedom',
+    1: 'Convergence in chi-square value',
+    2: 'Convergence in parameter value',
+    3: 'Convergence in both chi-square and parameter',
+    4: 'Convergence in orthogonality',
+    5: 'Maximum number of iterations reached',
+    6: 'ftol is too small; no further improvement',
+    7: 'xtol is too small; no further improvement',
+    8: 'gtol is too small; no further improvement',
+}
+
 
 def gaussian(x, i0, mu, sigma):
     """Gaussian function: i0 * exp(-((x - mu)^2) / (2 * sigma^2))"""
@@ -173,6 +195,7 @@ def plot_fit_comparison(result, output_dir=None):
     y = result['y']
     error = result['error']
     tp = result['true_params']
+    p0 = result['p0']
     
     # High-resolution x for smooth fit curves (10x resolution)
     x_fine = np.linspace(x[0], x[-1], len(x) * 10)
@@ -193,22 +216,53 @@ def plot_fit_comparison(result, output_dir=None):
         y_true_fine = gaussian(x_fine, *tp)
         ax.plot(x_fine, y_true_fine, color='grey', linestyle='--', linewidth=2, label='True')
         
+        # Plot initial guess (dashed green)
+        y_init_fine = gaussian(x_fine, *p0)
+        ax.plot(x_fine, y_init_fine, color='green', linestyle='--', linewidth=1.5, label='Init')
+        
         # Plot fitted Gaussian if successful (green)
         if result[method]['success']:
             params = result[method]['params']
             y_fit_fine = gaussian(x_fine, *params)
             ax.plot(x_fine, y_fit_fine, color='green', linestyle='-', linewidth=2, label=f'{label} fit')
             rchi2 = result[method]['reduced_chisq']
-            ax.set_title(f'{label}: I={params[0]:.1f}, v={params[1]:.2f}, w={params[2]:.2f}, rchi2={rchi2:.2f}')
+            # Add text in upper left with true and fitted params
+            text_lines = (
+                f'True:  I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}\n'
+                f'Fit:   I={params[0]:.1f}, v={params[1]:.2f}, w={params[2]:.2f}\n'
+                f'rchi2={rchi2:.2f}'
+            )
+            ax.text(0.02, 0.98, text_lines, transform=ax.transAxes, fontsize=9,
+                    verticalalignment='top', horizontalalignment='left',
+                    fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         else:
-            ax.set_title(f'{label}: FAILED')
+            # Build failure reason
+            method_result = result[method]
+            if 'error' in method_result:
+                fail_reason = method_result['error']
+                # Truncate long error messages
+                if len(fail_reason) > 40:
+                    fail_reason = fail_reason[:37] + '...'
+            elif 'status' in method_result:
+                status = method_result['status']
+                if status in MPFIT_STATUS:
+                    fail_reason = MPFIT_STATUS[status]
+                else:
+                    fail_reason = f'status={status}'
+            else:
+                fail_reason = 'unknown'
+            
+            ax.text(0.02, 0.98, f'True:  I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}\nFit:   FAILED\n{fail_reason}',
+                    transform=ax.transAxes, fontsize=9, verticalalignment='top', horizontalalignment='left',
+                    fontfamily='monospace', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
         
+        ax.set_title(label)
         ax.set_xlabel('x (pixels)')
         ax.set_ylabel('Intensity')
         ax.legend(loc='upper right')
         ax.set_xlim(x[0] - 0.5, x[-1] + 0.5)
     
-    fig.suptitle(f'Run {run_num}: True I={tp[0]:.1f}, v={tp[1]:.2f}, w={tp[2]:.2f}', fontsize=12)
+    fig.suptitle(f'Run {run_num}', fontsize=12)
     plt.tight_layout()
     
     # Save PNG
@@ -289,24 +343,30 @@ def run_comparison_n_times(n_runs, seed=42):
     
     for i in range(n_runs):
         # Randomize true parameters for each run
-        true_I = rng.uniform(1.0, 20.0)
-        true_v = rng.uniform(x[0], x[-1])  # peak anywhere in x range
+        true_I = rng.uniform(10.0, 200.0)
+        # Restrict true_v to be half a pixel from edges
+        true_v = rng.uniform(x[0] + 0.5 * pixel_spacing, x[-1] - 0.5 * pixel_spacing)
         true_fwhm_pixels = rng.uniform(2.0, 5.0)
         true_w = (true_fwhm_pixels * pixel_spacing) / 2.355
         
         true_params = [true_I, true_v, true_w]
         
         # Generate noisy data with Poisson noise
+        # Retry if max pixel is at either end of the array
         y_true = gaussian(x, *true_params)
-        # Poisson noise: variance = signal, so we sample from Poisson(y_true)
-        # Need to handle cases where y_true might be very small or negative
-        y_true_positive = np.maximum(y_true, 0.0)
-        y = rng.poisson(y_true_positive).astype(float)
+        while True:
+            # Poisson noise: variance = signal, so we sample from Poisson(y_true)
+            # Need to handle cases where y_true might be very small or negative
+            y_true_positive = np.maximum(y_true, 0.0)
+            y = rng.poisson(y_true_positive).astype(float)
+            max_idx = np.argmax(y)
+            # Check if max is not at either end
+            if max_idx != 0 and max_idx != len(y) - 1:
+                break
+            # Otherwise regenerate noise
+        
         # Error is sqrt of counts (Poisson statistics)
         error = np.sqrt(np.maximum(y, 1.0))  # minimum error of 1 to avoid division by zero
-        
-        # Initial guesses from noisy data
-        max_idx = np.argmax(y)
         p0_I = y[max_idx]
         p0_v = x[max_idx]
         p0_w = estimate_fwhm_from_data(x, y, max_idx)
@@ -317,15 +377,18 @@ def run_comparison_n_times(n_runs, seed=42):
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
         result['run'] = i + 1
         result['true_params'] = true_params
+        result['p0'] = p0
         result['x'] = x
         result['y'] = y
         result['error'] = error
         results_list.append(result)
     
     # Print header
+    v_min = x[0] + 0.5 * pixel_spacing
+    v_max = x[-1] - 0.5 * pixel_spacing
     print("=" * 120)
     print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels, Poisson noise)")
-    print(f"True params randomized: I in [1,20], v in [{x[0]:.2f},{x[-1]:.2f}], w (FWHM) in [2,5] pixels")
+    print(f"True params randomized: I in [10,200], v in [{v_min:.2f},{v_max:.2f}], w (FWHM) in [2,5] pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
     print("=" * 120)
     
