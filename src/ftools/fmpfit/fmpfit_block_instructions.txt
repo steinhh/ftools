@@ -1,0 +1,42 @@
+I now want to create an extension function called fmpfit_f64_block_ext that uses the mpfit library just like fmpfit_f64_ext does to perform fitting of multiple spectra in a single routine call.
+
+Below is my formulation of the requirements for this new function, can you see if the requirements are complete and make sense, with logical consistency (also with the summary above) and has no contradictions? If you find any issues, please point them out and suggest improvements.
+
+The function should have the following signature (identical to fmpfit_f64_ext except for the addition of "block" in the name and the handling of multiple spectra):
+```python
+def fmpfit_f64_block(x: np.ndarray, y: np.ndarray, error: np.ndarray, p0: np.ndarray, bounds: np.ndarray, 
+                     deviate_type: int = 0, maxiter: int = 1000, tol: float = 1e-10)
+    # x: shape (n_data_points,n_spectra)
+    # y: shape (n_data_points,n_spectra)
+    # error: shape (n_data_points,n_spectra)
+    # p0: shape (n_params,n_spectra)
+    # bounds: shape (2,n_params,n_spectra)
+```
+
+The first dimension of `x`, `y`, and `error` corresponds to the data points in each spectrum, and subsequent dimensions correspond to the number of spectra to be fitted. 
+
+The first dimension of `p0` and `bounds` corresponds to the parameters for each spectrum, and subsequent dimensions correspond to the number of parameters.
+
+The return type should be as for fmpfit_f64_ext, a dictionary with the same keys but each value will have an extra dimension for the number of spectra fitted. I.e., the return type should be:
+
+```python
+{
+    'best_params': np.ndarray,  # shape (n_params, n_spectra)
+    'bestnorm': np.ndarray,      # shape (n_spectra,)
+    'orignorm': np.ndarray,      # shape (n_spectra,)
+    'niter': np.ndarray,         # shape (n_spectra,)
+    'nfev': np.ndarray,         # shape (n_spectra,)
+    'status': np.ndarray,       # shape (n_spectra,)
+    'npar': np.ndarray,        # shape (n_spectra,)
+    'nfree': np.ndarray,      # shape (n_spectra,)
+    'npegged': np.ndarray,    # shape (n_spectra,)
+    'nfunc': np.ndarray,      # shape (n_spectra,)
+    'resid': np.ndarray,      # shape (n_data_points, n_spectra)
+    'xerror': np.ndarray,     # shape (n_params, n_spectra)
+    'covar': np.ndarray,      # shape (n_params, n_params, n_spectra)
+}
+```
+
+The function should fit each spectrum independently using the provided initial parameters (p0) and parameter limits (bounds).
+
+__init__.py should export fmpfit_f64_block_wrap() as a wrapper around fmpfit_f64_block().
