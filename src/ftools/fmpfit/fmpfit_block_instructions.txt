@@ -6,22 +6,22 @@ The function should have the following signature (identical to fmpfit_f64_ext ex
 ```python
 def fmpfit_f64_block(x: np.ndarray, y: np.ndarray, error: np.ndarray, p0: np.ndarray, bounds: np.ndarray, 
                      deviate_type: int = 0, maxiter: int = 1000, tol: float = 1e-10)
-    # x: shape (n_data_points,n_spectra)
-    # y: shape (n_data_points,n_spectra)
-    # error: shape (n_data_points,n_spectra)
-    # p0: shape (n_params,n_spectra)
-    # bounds: shape (2,n_params,n_spectra)
+    # x: shape (n_spectra, n_data_points) - data points contiguous per spectrum
+    # y: shape (n_spectra, n_data_points)
+    # error: shape (n_spectra, n_data_points)
+    # p0: shape (n_spectra, n_params)
+    # bounds: shape (n_spectra, n_params, 2) - [min, max] for each param
 ```
 
-The first dimension of `x`, `y`, and `error` corresponds to the data points in each spectrum, and subsequent dimensions correspond to the number of spectra to be fitted. 
+The last dimension of `x`, `y`, and `error` corresponds to the data points in each spectrum (contiguous in memory), and the first dimension corresponds to the number of spectra to be fitted.
 
-The first dimension of `p0` and `bounds` corresponds to the parameters for each spectrum, and subsequent dimensions correspond to the number of parameters.
+The first dimension of `p0` and `bounds` corresponds to the number of spectra, and subsequent dimensions correspond to the parameters.
 
 The return type should be as for fmpfit_f64_ext, a dictionary with the same keys but each value will have an extra dimension for the number of spectra fitted. I.e., the return type should be:
 
 ```python
 {
-    'best_params': np.ndarray,  # shape (n_params, n_spectra)
+    'best_params': np.ndarray,  # shape (n_spectra, n_params)
     'bestnorm': np.ndarray,      # shape (n_spectra,)
     'orignorm': np.ndarray,      # shape (n_spectra,)
     'niter': np.ndarray,         # shape (n_spectra,)
@@ -31,9 +31,9 @@ The return type should be as for fmpfit_f64_ext, a dictionary with the same keys
     'nfree': np.ndarray,      # shape (n_spectra,)
     'npegged': np.ndarray,    # shape (n_spectra,)
     'nfunc': np.ndarray,      # shape (n_spectra,)
-    'resid': np.ndarray,      # shape (n_data_points, n_spectra)
-    'xerror': np.ndarray,     # shape (n_params, n_spectra)
-    'covar': np.ndarray,      # shape (n_params, n_params, n_spectra)
+    'resid': np.ndarray,      # shape (n_spectra, n_data_points)
+    'xerror': np.ndarray,     # shape (n_spectra, n_params)
+    'covar': np.ndarray,      # shape (n_spectra, n_params, n_params)
 }
 ```
 

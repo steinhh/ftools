@@ -112,12 +112,22 @@ ext_modules = [
         extra_compile_args=["-O3"],
         extra_link_args=fgaussian_extra_link_args,
     ),
+    Extension(
+        "ftools.fmpfit.fmpfit_f64_block_ext",
+        sources=[
+            os.path.join("src", "ftools", "fmpfit", "fmpfit_f64_block_ext.c"),
+            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5_f64", "mpfit.c"),
+        ],
+        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        extra_compile_args=["-O3"],
+        extra_link_args=fgaussian_extra_link_args,
+    ),
 ]
 
 
 setup(
     name="ftools",
-    version="4.0.97",
+    version="4.0.98",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
