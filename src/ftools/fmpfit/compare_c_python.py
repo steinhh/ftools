@@ -6,6 +6,29 @@ Usage:
     python compare_c_python.py [N]
     
     N: number of comparison runs (default: 10)
+    
+Prints a summary table comparing true parameters, fitted parameters,
+Generates PNG plots for the first 20 runs in a 'figs' subdirectory.
+
+Results:
+
+   Pass - for all practical purposes results are identical.
+
+   Biases (intensity I in [ 2 ... 10 ]):
+
+      I = +10%
+      w = -12%
+
+      As expected with so few pixels.
+      Basically cancels out for total flux!
+
+   Biases (intensity I in [20 ... 50]):
+
+      I = +1.1%
+      w = -1.8%
+
+      Excellent!
+      
 """
 # 
 import sys
@@ -361,16 +384,22 @@ def run_comparison_n_times(n_runs, seed=41):
     """
     Run comparison N times with randomized true parameters and Poisson noise.
     
+    Simulates realistic data extraction:
+    1. Generate Gaussian on 10-pixel wide array
+    2. True mean (v) is within +/-0.5 pixels of center
+    3. Add Poisson noise
+    4. Find maximum pixel and extract 5 pixels centered on it
+    
     True parameters are randomized for each run:
-    - intensity (I): uniform in [1, 20]
-    - velocity (v): uniform in [x[0], x[-1]], so peak can be anywhere in the 5-pixel range
+    - intensity (I): uniform in [2, 10]
+    - velocity (v): uniform in [-0.5, 0.5] from center pixel
     - width (w): FWHM uniform in [2, 5] pixels, converted to sigma
     
     Noise is Poisson-distributed (variance = signal), with error = sqrt(counts).
     
     Initial guesses are derived from the noisy data:
     - p0_I: value of the maximum pixel
-    - p0_v: x-coordinate of the maximum pixel
+    - p0_v: x-coordinate of the maximum pixel (always 0 in extracted window)
     - p0_w: estimated from half-max crossings, or default 3.0 pixels FWHM if not found
     
     Parameters
@@ -378,7 +407,7 @@ def run_comparison_n_times(n_runs, seed=41):
     n_runs : int
         Number of comparison runs to perform
     seed : int, optional
-        Random seed for reproducibility (default: 42)
+        Random seed for reproducibility (default: 41)
     
     Returns
     -------
@@ -387,44 +416,66 @@ def run_comparison_n_times(n_runs, seed=41):
     """
     rng = np.random.default_rng(seed)
     
-    # Fixed x array: 5 pixels
-    x = np.linspace(-2.0, 2.0, 5)
-    pixel_spacing = x[1] - x[0]
+    # Wide array: 10 pixels for initial data generation
+    n_wide = 10
+    x_wide = np.arange(n_wide) - (n_wide - 1) / 2.0  # Centered: [-4.5, -3.5, ..., 4.5]
+    pixel_spacing = 1.0
     
     # Storage for results
     results_list = []
 
-    true_I_range = (2.0, 10.0)
-    true_v_range = (x[0] + 0.5 * pixel_spacing, x[-1] - 0.5 * pixel_spacing)
-    true_fwhm_range = (2, 5.0) # FWHM from 2 to 5 pixels (5 pixels = full x range)
+    true_I_range = (10.0, 50.0)
+    true_v_range = (-0.5, 0.5)  # Within +/-0.5 pixels of center (x=0)
+    true_fwhm_range = (2, 5.0)  # FWHM from 2 to 5 pixels
 
     for i in range(n_runs):
         # Randomize true parameters for each run
         true_I = rng.uniform(*true_I_range)
-        # Restrict true_v to be half a pixel from edges
+        # True mean within +/-0.5 pixels of center
         true_v = rng.uniform(*true_v_range)
         
         true_fwhm_pixels = rng.uniform(*true_fwhm_range)
         true_w = (true_fwhm_pixels * pixel_spacing) / 2.355
         
-        true_params = [true_I, true_v, true_w]
+        true_params_wide = [true_I, true_v, true_w]
         
-        # Generate noisy data with Poisson noise
-        # Retry if max pixel is at either end of the array
-        y_true = gaussian(x, *true_params)
-        while True:
-            # Poisson noise: variance = signal, so we sample from Poisson(y_true)
-            # Need to handle cases where y_true might be very small or negative
-            y_true_positive = np.maximum(y_true, 0.0)
-            y = rng.poisson(y_true_positive).astype(float)
-            max_idx = np.argmax(y)
-            # Check if max is not at either end
-            if max_idx != 0 and max_idx != len(y) - 1:
-                break
-            # Otherwise regenerate noise
+        # Generate noisy data on wide array with Poisson noise
+        y_true_wide = gaussian(x_wide, *true_params_wide)
+        y_true_wide_positive = np.maximum(y_true_wide, 0.0)
+        y_wide = rng.poisson(y_true_wide_positive).astype(float)
+        
+        # Find maximum pixel
+        max_idx_wide = np.argmax(y_wide)
+        
+        # Extract 5 pixels centered on maximum
+        half_window = 2
+        start_idx = max_idx_wide - half_window
+        end_idx = max_idx_wide + half_window + 1
+        
+        # Handle edge cases (should be rare with v near center)
+        if start_idx < 0:
+            start_idx = 0
+            end_idx = 5
+        if end_idx > n_wide:
+            end_idx = n_wide
+            start_idx = n_wide - 5
+        
+        # Extract 5-pixel window
+        x = x_wide[start_idx:end_idx]
+        y = y_wide[start_idx:end_idx]
+        
+        # Shift x so the maximum pixel is at x=0
+        x = x - x_wide[max_idx_wide]
+        
+        # True params in extracted window coordinates
+        true_v_extracted = true_v - x_wide[max_idx_wide]
+        true_params = [true_I, true_v_extracted, true_w]
         
         # Error is sqrt of counts (Poisson statistics)
         error = np.sqrt(np.maximum(y, 1.0))  # minimum error of 1 to avoid division by zero
+        
+        # Initial guesses from extracted data
+        max_idx = np.argmax(y)  # Should be center (index 2) in extracted window
         p0_I = y[max_idx]
         p0_v = x[max_idx]
         p0_w = estimate_fwhm_from_data(x, y, max_idx)
@@ -444,22 +495,24 @@ def run_comparison_n_times(n_runs, seed=41):
         results_list.append(result)
     
     # Print header
-    v_min = x[0] + 0.5 * pixel_spacing
-    v_max = x[-1] - 0.5 * pixel_spacing
     print("=" * 120)
-    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels, Poisson noise)")
-    print(f"True params randomized: I in [10,200], v in [{v_min:.2f},{v_max:.2f}], w (FWHM) in [1,5] pixels")
+    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels extracted from 10, Poisson noise)")
+    print(f"True params randomized: I in {true_I_range}, v in {true_v_range} (from center), w (FWHM) in {true_fwhm_range} pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
     print("=" * 120)
     
     # Table header
     print(f"\n{'':>4} || {'True':^20} || {'Scipy':^53} || {'MPFIT':^53} ||")
-    print(f"{'Run':>4} || {'I':>6} {'v':>6} {'w':>6} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>5}  {'v_px':>5}  {'w%':>5}  {'rchi2':>5} {'FAIL':>4} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>5}  {'v_px':>5}  {'w%':>5}  {'rchi2':>5} {'FAIL':>4} ||")
-    print("-" * 142)
+    print(f"{'Run':>4} || {'I':>6} {'v':>6} {'w':>6} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} ||")
+    print("-" * 146)
     
     # Print each run
     n_scipy_fail = 0
     n_mpfit_fail = 0
+    
+    # Accumulators for signed differences (for averaging)
+    sp_I_pct_list, sp_v_px_list, sp_w_pct_list = [], [], []
+    mp_I_pct_list, mp_v_px_list, mp_w_pct_list = [], [], []
     
     for r in results_list:
         tp = r['true_params']
@@ -473,13 +526,17 @@ def run_comparison_n_times(n_runs, seed=41):
         if scipy_ok:
             sp = r['scipy']['params']
             sp_rchi2 = r['scipy']['reduced_chisq']
-            sp_I_pct = 100 * abs(sp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
-            sp_v_px = abs(sp[1] - tp[1]) / pixel_spacing
-            sp_w_pct = 100 * abs(sp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
-            # Check if scipy matched truth well
-            sp_I_match = sp_I_pct <= 10.0  # 10% tolerance for I
-            sp_v_match = sp_v_px <= 0.1  # 0.1 pixel tolerance for v
-            sp_w_match = sp_w_pct <= 10.0  # 10% tolerance for w
+            # Signed differences
+            sp_I_pct = 100 * (sp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            sp_v_px = (sp[1] - tp[1]) / pixel_spacing
+            sp_w_pct = 100 * (sp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            sp_I_pct_list.append(sp_I_pct)
+            sp_v_px_list.append(sp_v_px)
+            sp_w_pct_list.append(sp_w_pct)
+            # Check if scipy matched truth well (use absolute for tolerance check)
+            sp_I_match = abs(sp_I_pct) <= 10.0  # 10% tolerance for I
+            sp_v_match = abs(sp_v_px) <= 0.1  # 0.1 pixel tolerance for v
+            sp_w_match = abs(sp_w_pct) <= 10.0  # 10% tolerance for w
             scipy_good = sp_I_match and sp_v_match and sp_w_match
             scipy_fail = '****' if not scipy_good else ''
             if not scipy_good:
@@ -488,22 +545,26 @@ def run_comparison_n_times(n_runs, seed=41):
             sp_I_mark = '*' if not sp_I_match else ' '
             sp_v_mark = '*' if not sp_v_match else ' '
             sp_w_mark = '*' if not sp_w_match else ' '
-            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} | {sp_I_pct:>5.1f}{sp_I_mark} {sp_v_px:>5.2f}{sp_v_mark} {sp_w_pct:>5.1f}{sp_w_mark} {sp_rchi2:>5.2f} {scipy_fail:>4}"
+            scipy_str = f"{sp[0]:>6.1f} {sp[1]:>6.1f} {sp[2]:>6.1f} | {sp_I_pct:>+6.1f}{sp_I_mark}{sp_v_px:>+6.2f}{sp_v_mark}{sp_w_pct:>+6.1f}{sp_w_mark}{sp_rchi2:>5.2f} {scipy_fail:>4}"
         else:
             n_scipy_fail += 1
-            scipy_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
+            scipy_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>6} {'-':>6} {'-':>6} {'-':>5} {'****':>4}"
         
         # Mpfit params and fail status
         if mpfit_ok:
             mp = r['fmpfit']['params']
             mp_rchi2 = r['fmpfit']['reduced_chisq']
-            mp_I_pct = 100 * abs(mp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
-            mp_v_px = abs(mp[1] - tp[1]) / pixel_spacing
-            mp_w_pct = 100 * abs(mp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
-            # Check if mpfit matched truth well
-            mp_I_match = mp_I_pct <= 10.0
-            mp_v_match = mp_v_px <= 0.1
-            mp_w_match = mp_w_pct <= 10.0
+            # Signed differences
+            mp_I_pct = 100 * (mp[0] - tp[0]) / tp[0] if tp[0] != 0 else 0
+            mp_v_px = (mp[1] - tp[1]) / pixel_spacing
+            mp_w_pct = 100 * (mp[2] - tp[2]) / tp[2] if tp[2] != 0 else 0
+            mp_I_pct_list.append(mp_I_pct)
+            mp_v_px_list.append(mp_v_px)
+            mp_w_pct_list.append(mp_w_pct)
+            # Check if mpfit matched truth well (use absolute for tolerance check)
+            mp_I_match = abs(mp_I_pct) <= 10.0
+            mp_v_match = abs(mp_v_px) <= 0.1
+            mp_w_match = abs(mp_w_pct) <= 10.0
             mpfit_good = mp_I_match and mp_v_match and mp_w_match
             mpfit_fail = '****' if not mpfit_good else ''
             if not mpfit_good:
@@ -512,14 +573,28 @@ def run_comparison_n_times(n_runs, seed=41):
             mp_I_mark = '*' if not mp_I_match else ' '
             mp_v_mark = '*' if not mp_v_match else ' '
             mp_w_mark = '*' if not mp_w_match else ' '
-            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} | {mp_I_pct:>5.1f}{mp_I_mark} {mp_v_px:>5.2f}{mp_v_mark} {mp_w_pct:>5.1f}{mp_w_mark} {mp_rchi2:>5.2f} {mpfit_fail:>4}"
+            mpfit_str = f"{mp[0]:>6.1f} {mp[1]:>6.1f} {mp[2]:>6.1f} | {mp_I_pct:>+6.1f}{mp_I_mark}{mp_v_px:>+6.2f}{mp_v_mark}{mp_w_pct:>+6.1f}{mp_w_mark}{mp_rchi2:>5.2f} {mpfit_fail:>4}"
         else:
             n_mpfit_fail += 1
-            mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5} {'****':>4}"
+            mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>6} {'-':>6} {'-':>6} {'-':>5} {'****':>4}"
         
         print(f"{r['run']:>4} || {true_str} || {scipy_str} || {mpfit_str} ||")
     
-    print("-" * 142)
+    print("-" * 146)
+    
+    # Compute and print averages
+    def avg(lst):
+        return sum(lst) / len(lst) if lst else float('nan')
+    
+    sp_I_avg, sp_v_avg, sp_w_avg = avg(sp_I_pct_list), avg(sp_v_px_list), avg(sp_w_pct_list)
+    mp_I_avg, mp_v_avg, mp_w_avg = avg(mp_I_pct_list), avg(mp_v_px_list), avg(mp_w_pct_list)
+    
+    # Average line (aligned with difference columns)
+    avg_scipy = f"{'':>6} {'':>6} {'':>6} | {sp_I_avg:>+6.1f} {sp_v_avg:>+6.2f} {sp_w_avg:>+6.1f} {'':>5} {'':>4}"
+    avg_mpfit = f"{'':>6} {'':>6} {'':>6} | {mp_I_avg:>+6.1f} {mp_v_avg:>+6.2f} {mp_w_avg:>+6.1f} {'':>5} {'':>4}"
+    print(f"{'Avg':>4} || {'':>20} || {avg_scipy} || {avg_mpfit} ||")
+    
+    print("-" * 146)
     print(f"Summary: Scipy {n_scipy_fail}/{n_runs} failed, MPFIT {n_mpfit_fail}/{n_runs} failed (I/w: 10% tol, v: 0.1 px tol)")
     
     # Generate plots for the first num_plot runs
