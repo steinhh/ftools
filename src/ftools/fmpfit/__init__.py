@@ -8,6 +8,7 @@ Provides efficient curve fitting with parameter constraints.
 import numpy as np
 from . import fmpfit_f64_ext
 from . import fmpfit_f32_ext
+from . import fmpfit_f64_block_ext
 
 
 class MPFitResult:
@@ -310,4 +311,106 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSON
         c_time=c_time
     )
 
-__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'MPFitResult']
+
+def fmpfit_f64_block_wrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
+                          xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
+    """
+    Levenberg-Marquardt least-squares minimization for multiple spectra (float64)
+    
+    Fits multiple spectra independently in a single call, using analytical derivatives
+    (Jacobian) for the Gaussian model internally.
+    
+    Parameters
+    ----------
+    x : ndarray, shape (n_spectra, n_data_points)
+        Independent variable for each spectrum. Data points are contiguous per spectrum.
+    y : ndarray, shape (n_spectra, n_data_points)
+        Dependent variable (measured values) for each spectrum.
+    error : ndarray, shape (n_spectra, n_data_points)
+        Measurement uncertainties for each spectrum.
+    p0 : ndarray, shape (n_spectra, n_params)
+        Initial parameter guesses for each spectrum.
+    bounds : ndarray, shape (n_spectra, n_params, 2)
+        Parameter bounds [min, max] for each parameter of each spectrum.
+    deviate_type : int, optional
+        Model type: 0 = Gaussian (default)
+    xtol : float, optional
+        Relative tolerance in parameter values (default: 1e-6)
+    ftol : float, optional
+        Relative tolerance in chi-square (default: 1e-6)
+    gtol : float, optional
+        Orthogonality tolerance (default: 1e-6)
+    maxiter : int, optional
+        Maximum iterations (default: 2000)
+    quiet : int, optional
+        Suppress output: 1=quiet, 0=verbose (default: 1)
+    
+    Returns
+    -------
+    dict
+        Dictionary with fit results for all spectra:
+        - 'best_params': shape (n_spectra, n_params) - best-fit parameters
+        - 'bestnorm': shape (n_spectra,) - final chi-square values
+        - 'orignorm': shape (n_spectra,) - initial chi-square values
+        - 'niter': shape (n_spectra,) - iterations performed
+        - 'nfev': shape (n_spectra,) - function evaluations
+        - 'status': shape (n_spectra,) - status codes
+        - 'npar': shape (n_spectra,) - number of parameters
+        - 'nfree': shape (n_spectra,) - number of free parameters
+        - 'npegged': shape (n_spectra,) - number of pegged parameters
+        - 'nfunc': shape (n_spectra,) - number of data points
+        - 'resid': shape (n_spectra, n_data_points) - final residuals
+        - 'xerror': shape (n_spectra, n_params) - parameter uncertainties
+        - 'covar': shape (n_spectra, n_params, n_params) - covariance matrices
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from ftools.fmpfit import fmpfit_f64_block_wrap
+    >>> n_spectra, n_points, n_params = 100, 5, 3
+    >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
+    >>> # ... generate y, error, p0, bounds ...
+    >>> result = fmpfit_f64_block_wrap(x, y, error, p0, bounds)
+    >>> print(result['best_params'].shape)  # (100, 3)
+    """
+    # Convert to contiguous float64 arrays
+    x = np.ascontiguousarray(x, dtype=np.float64)
+    y = np.ascontiguousarray(y, dtype=np.float64)
+    error = np.ascontiguousarray(error, dtype=np.float64)
+    p0 = np.ascontiguousarray(p0, dtype=np.float64)
+    bounds = np.ascontiguousarray(bounds, dtype=np.float64)
+    
+    # Validate shapes
+    if x.ndim != 2 or y.ndim != 2 or error.ndim != 2:
+        raise ValueError("x, y, and error must be 2D arrays with shape (n_spectra, n_data_points)")
+    if p0.ndim != 2:
+        raise ValueError("p0 must be a 2D array with shape (n_spectra, n_params)")
+    if bounds.ndim != 3:
+        raise ValueError("bounds must be a 3D array with shape (n_spectra, n_params, 2)")
+    
+    n_spectra, mpoints = x.shape
+    _, npar = p0.shape
+    
+    if y.shape != (n_spectra, mpoints) or error.shape != (n_spectra, mpoints):
+        raise ValueError("x, y, and error must have the same shape")
+    if p0.shape[0] != n_spectra:
+        raise ValueError("p0 must have n_spectra rows")
+    if bounds.shape != (n_spectra, npar, 2):
+        raise ValueError("bounds must have shape (n_spectra, n_params, 2)")
+    
+    # Call C extension
+    import time
+    t_start = time.perf_counter()
+    result_dict = fmpfit_f64_block_ext.fmpfit_f64_block(
+        x, y, error, p0, bounds,
+        int(n_spectra), int(mpoints), int(npar), int(deviate_type),
+        float(xtol), float(ftol), float(gtol),
+        int(maxiter), int(quiet)
+    )
+    t_end = time.perf_counter()
+    result_dict['c_time'] = t_end - t_start
+    
+    return result_dict
+
+
+__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'fmpfit_f64_block_wrap', 'MPFitResult']

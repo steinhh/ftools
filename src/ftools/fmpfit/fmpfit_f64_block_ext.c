@@ -247,8 +247,8 @@ static PyObject *py_fmpfit_f64_block(PyObject *self, PyObject *args)
   /* Release GIL while running the compute-heavy loop */
   Py_BEGIN_ALLOW_THREADS
 
-  /* Process each spectrum */
-  for (int s = 0; s < n_spectra; s++)
+      /* Process each spectrum */
+      for (int s = 0; s < n_spectra; s++)
   {
     /* Pointers to this spectrum's data (contiguous in last dimension) */
     const double *x_s = x + s * mpoints;
@@ -281,8 +281,8 @@ static PyObject *py_fmpfit_f64_block(PyObject *self, PyObject *args)
 
   Py_END_ALLOW_THREADS
 
-  /* Release input arrays */
-  Py_DECREF(x_contig);
+      /* Release input arrays */
+      Py_DECREF(x_contig);
   Py_DECREF(y_contig);
   Py_DECREF(error_contig);
   Py_DECREF(p0_contig);
