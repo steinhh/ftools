@@ -1,5 +1,5 @@
 import numpy as np
-from ftools.fmpfit import fmpfit_f64_block_wrap, fmpfit_f64_wrap
+from ftools.fmpfit import fmpfit_f64_block_pywrap, fmpfit_f64_pywrap
 import time
 import sys
 
@@ -41,7 +41,7 @@ bounds[:, 2, :] = [0.5, 3.0]
 
 # Time block fitting
 t0 = time.perf_counter()
-result_block = fmpfit_f64_block_wrap(x, y, error, p0, bounds)
+result_block = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
 t_block = time.perf_counter() - t0
 
 # Time individual fitting (first 100 for comparison)
@@ -54,7 +54,7 @@ for s in range(n_compare):
         {'value': p0[s, 2], 'limits': [bounds[s, 2, 0], bounds[s, 2, 1]]},
     ]
     functkw = {'x': x[s], 'y': y[s], 'error': error[s]}
-    _ = fmpfit_f64_wrap(0, parinfo=parinfo, functkw=functkw)
+    _ = fmpfit_f64_pywrap(0, parinfo=parinfo, functkw=functkw)
 t_single = (time.perf_counter() - t0) / n_compare * n_spectra
 
 # Results

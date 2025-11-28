@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cmpfit-1.5_f64/mpfit.h"
+#include "cmpfit-1.5/mpfit.h"
 
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate_f64.c"
@@ -33,7 +33,7 @@ static void fmpfit_f64_c_wrap(
   mp_par *pars = NULL;
   mp_config config;
   mp_result result;
-  struct gaussian_private_data private;
+  struct gaussian_private_data private_data;
 
   /* Initialize parameter array from p0 */
   for (i = 0; i < npar; i++)
@@ -93,14 +93,14 @@ static void fmpfit_f64_c_wrap(
   result.covar = covar;
 
   /* Setup private data for user function */
-  private.x = x;
-  private.y = y;
-  private.error = error;
+  private_data.x = x;
+  private_data.y = y;
+  private_data.error = error;
 
   /* Call MPFIT */
   *status = mpfit(myfunct_gaussian_deviates_with_derivatives,
                   mpoints, npar, best_params, pars, &config,
-                  (void *)&private, &result);
+                  (void *)&private_data, &result);
 
   /* Extract results */
   *bestnorm = result.bestnorm;
@@ -114,24 +114,28 @@ static void fmpfit_f64_c_wrap(
 }
 
 /*
- * Python wrapper: fmpfit_f64(x, y, error, p0, bounds, mpoints, npar, deviate_type,
+ * Python wrapper: fmpfit_f64(x, y, error, p0, bounds, deviate_type,
  *                            xtol, ftol, gtol, maxiter, quiet)
+ *
+ * Note: mpoints and npar are inferred from array shapes
  */
 static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
 {
   PyArrayObject *x_array = NULL, *y_array = NULL, *error_array = NULL;
   PyArrayObject *p0_array = NULL, *bounds_array = NULL;
-  int mpoints, npar, deviate_type, maxiter, quiet;
+  int deviate_type, maxiter, quiet;
   double xtol, ftol, gtol;
 
-  /* Parse arguments */
-  if (!PyArg_ParseTuple(args, "O!O!O!O!O!iiidddii",
+  (void)self;
+
+  /* Parse arguments - no mpoints/npar needed */
+  if (!PyArg_ParseTuple(args, "O!O!O!O!O!idddii",
                         &PyArray_Type, &x_array,
                         &PyArray_Type, &y_array,
                         &PyArray_Type, &error_array,
                         &PyArray_Type, &p0_array,
                         &PyArray_Type, &bounds_array,
-                        &mpoints, &npar, &deviate_type,
+                        &deviate_type,
                         &xtol, &ftol, &gtol,
                         &maxiter, &quiet))
   {
@@ -159,6 +163,10 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
     Py_XDECREF(bounds_contig);
     return NULL;
   }
+
+  /* Infer dimensions from array shapes */
+  int mpoints = (int)PyArray_DIM(x_contig, 0);
+  int npar = (int)PyArray_DIM(p0_contig, 0);
 
   /* Get data pointers */
   const double *x = (const double *)PyArray_DATA(x_contig);
@@ -297,7 +305,9 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
 static PyMethodDef FMPFitMethods[] = {
     {"fmpfit_f64", py_fmpfit_f64, METH_VARARGS,
      "Levenberg-Marquardt least-squares curve fitting (float64)\n\n"
-     "Performs constrained nonlinear least squares fitting using MPFIT with double precision."},
+     "Performs constrained nonlinear least squares fitting using MPFIT with double precision.\n\n"
+     "Parameters: x, y, error, p0, bounds, deviate_type, xtol, ftol, gtol, maxiter, quiet\n"
+     "Note: mpoints and npar are inferred from array shapes."},
     {NULL, NULL, 0, NULL}};
 
 /* Module definition */

@@ -22,9 +22,9 @@ struct gaussian_private_data
  * Parameters: p[0] = amplitude, p[1] = mean, p[2] = sigma
  */
 int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *deviates,
-                                               double **derivs, void *private_data)
+                                               double **derivs, void *user_data)
 {
-  struct gaussian_private_data *private = (struct gaussian_private_data *)private_data;
+  struct gaussian_private_data *pdata = (struct gaussian_private_data *)user_data;
   int i;
   double amp, mean, sigma;
   (void)n; /* Suppress unused parameter warning */
@@ -47,9 +47,9 @@ int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *
 
   for (i = 0; i < m; i++)
   {
-    double x_i = private->x[i];
-    double y_i = private->y[i];
-    double err_i = private->error[i];
+    double x_i = pdata->x[i];
+    double y_i = pdata->y[i];
+    double err_i = pdata->error[i];
     double z = (x_i - mean) / sigma;
     double expterm = exp(-0.5 * z * z);
     double model = amp * expterm;
@@ -70,7 +70,7 @@ int myfunct_gaussian_deviates_with_derivatives(int m, int n, double *p, double *
   {
     for (i = 0; i < m; i++)
     {
-      double err_i = private->error[i];
+      double err_i = pdata->error[i];
       double expterm = expterms[i];
       double z = z_values[i];
 

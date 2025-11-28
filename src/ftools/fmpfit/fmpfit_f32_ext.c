@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cmpfit-1.5_f32/mpfit.h"
+#include "cmpfit-1.5/mpfit.h"
 
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate_f32.c"
@@ -33,7 +33,7 @@ static void fmpfit_f32_c_wrap(
   mp_par *pars = NULL;
   mp_config config;
   mp_result result;
-  struct gaussian_private_data_f32 private;
+  struct gaussian_private_data_f32 private_data;
 
   /* Initialize parameter array from p0 */
   for (i = 0; i < npar; i++)
@@ -92,9 +92,9 @@ static void fmpfit_f32_c_wrap(
   result.covar = covar;
 
   /* Setup private data for Gaussian model */
-  private.x = x;
-  private.y = y;
-  private.error = error;
+  private_data.x = x;
+  private_data.y = y;
+  private_data.error = error;
 
   /* Call MPFIT */
   if (deviate_type == 0)
@@ -102,7 +102,7 @@ static void fmpfit_f32_c_wrap(
     /* Gaussian model */
     *status = mpfit(myfunct_gaussian_deviates_with_derivatives_f32,
                     mpoints, npar, best_params, pars, &config,
-                    (void *)&private, &result);
+                    (void *)&private_data, &result);
   }
   else
   {
@@ -124,17 +124,21 @@ static void fmpfit_f32_c_wrap(
 
 /*
  * Python wrapper function
+ *
+ * Note: mpoints and npar are inferred from array shapes
  */
 static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
 {
   PyObject *x_obj, *y_obj, *error_obj, *p0_obj, *bounds_obj;
-  int mpoints, npar, deviate_type, maxiter, quiet;
+  int deviate_type, maxiter, quiet;
   double xtol_d, ftol_d, gtol_d;
 
-  /* Parse arguments - Python uses double ('d'), we'll convert to float */
-  if (!PyArg_ParseTuple(args, "OOOOOiiidddii",
+  (void)self;
+
+  /* Parse arguments - no mpoints/npar needed */
+  if (!PyArg_ParseTuple(args, "OOOOOidddii",
                         &x_obj, &y_obj, &error_obj, &p0_obj, &bounds_obj,
-                        &mpoints, &npar, &deviate_type,
+                        &deviate_type,
                         &xtol_d, &ftol_d, &gtol_d,
                         &maxiter, &quiet))
   {
@@ -162,6 +166,10 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     Py_XDECREF(bounds_contig);
     return NULL;
   }
+
+  /* Infer dimensions from array shapes */
+  int mpoints = (int)PyArray_DIM(x_contig, 0);
+  int npar = (int)PyArray_DIM(p0_contig, 0);
 
   /* Get data pointers */
   float *x = (float *)PyArray_DATA(x_contig);
@@ -298,7 +306,9 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
 static PyMethodDef FMPFitF32Methods[] = {
     {"fmpfit_f32", py_fmpfit_f32, METH_VARARGS,
      "Levenberg-Marquardt least-squares curve fitting (float32 version)\n\n"
-     "Performs constrained nonlinear least squares fitting using MPFIT with float32 precision."},
+     "Performs constrained nonlinear least squares fitting using MPFIT with float32 precision.\n\n"
+     "Parameters: x, y, error, p0, bounds, deviate_type, xtol, ftol, gtol, maxiter, quiet\n"
+     "Note: mpoints and npar are inferred from array shapes."},
     {NULL, NULL, 0, NULL}};
 
 /* Module definition */

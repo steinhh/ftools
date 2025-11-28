@@ -6,7 +6,7 @@ import os, sys
 # Ensure package import path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + '/')
 
-from ftools import fmpfit_f64_wrap, fmpfit_f32_wrap
+from ftools import fmpfit_f64_pywrap, fmpfit_f32_pywrap
 
 
 def make_functkw(dtype):
@@ -23,7 +23,7 @@ def worker_f64(results, idx):
             {'value': 0.0, 'limits': [-5.0, 5.0]},
             {'value': 1.0, 'limits': [0.1, 5.0]}
         ]
-        result = fmpfit_f64_wrap(0, parinfo=parinfo, functkw=make_functkw(np.float64))
+        result = fmpfit_f64_pywrap(0, parinfo=parinfo, functkw=make_functkw(np.float64))
         results[idx] = ('ok', result.status if result is not None else None)
     except Exception as e:
         results[idx] = ('error', repr(e))
@@ -36,7 +36,7 @@ def worker_f32(results, idx):
             {'value': 0.0, 'limits': [-5.0, 5.0]},
             {'value': 1.0, 'limits': [0.1, 5.0]}
         ]
-        result = fmpfit_f32_wrap(0, parinfo=parinfo, functkw=make_functkw(np.float32))
+        result = fmpfit_f32_pywrap(0, parinfo=parinfo, functkw=make_functkw(np.float32))
         results[idx] = ('ok', result.status if result is not None else None)
     except Exception as e:
         results[idx] = ('error', repr(e))

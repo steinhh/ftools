@@ -9,6 +9,7 @@ import numpy as np
 from . import fmpfit_f64_ext
 from . import fmpfit_f32_ext
 from . import fmpfit_f64_block_ext
+from . import fmpfit_f32_block_ext
 
 
 class MPFitResult:
@@ -68,9 +69,9 @@ class MPFitResult:
                 f"bestnorm={self.bestnorm:.6e})")
 
 
-def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
-                    xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
-                    maxiter=2000, quiet=1):
+def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
+                      xtol=1.0e-6, ftol=1.0e-6, gtol=1.0e-6, 
+                      maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization (float64)
     
@@ -110,7 +111,7 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_f64_wrap
+    >>> from ftools.fmpfit import fmpfit_f64_pywrap
     >>> x = np.linspace(-5, 5, 100)
     >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
     >>> error = np.ones_like(y) * 0.1
@@ -120,7 +121,7 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     ...     {'value': 1.0, 'limits': [0.1, 5.0]}     # sigma
     ... ]
     >>> functkw = {'x': x, 'y': y, 'error': error}
-    >>> result = fmpfit_f64_wrap(0, parinfo=parinfo, functkw=functkw)
+    >>> result = fmpfit_f64_pywrap(0, parinfo=parinfo, functkw=functkw)
     >>> print(result.best_params)
     """
     # Validate inputs
@@ -143,7 +144,6 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     if len(x) != len(y) or len(x) != len(error):
         raise ValueError("x, y, and error must have the same length")
     
-    mpoints = len(x)
     npar = len(parinfo)
     
     # Extract initial parameter values and bounds
@@ -167,12 +167,12 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
         if bounds[i, 0] >= bounds[i, 1]:
             raise ValueError(f"parinfo[{i}]: lower bound must be < upper bound")
     
-    # Call C extension with timing
+    # Call C extension with timing (mpoints/npar inferred from array shapes)
     import time
     t_start = time.perf_counter()
     result_dict = fmpfit_f64_ext.fmpfit_f64(
         x, y, error, p0, bounds,
-        int(mpoints), int(npar), int(deviate_type),
+        int(deviate_type),
         float(xtol), float(ftol), float(gtol),
         int(maxiter), int(quiet)
     )
@@ -198,13 +198,13 @@ def fmpfit_f64_wrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     )
 
 
-def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSONAR
-                    ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
+def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSONAR
+                      ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
     """MPFIT wrapper function for float32 (single precision) fitting.
     Uses analytical derivatives (Jacobian) for the Gaussian model internally,
     which provides faster and more accurate convergence than finite differences.
 
-    Same as fmpfit_f64_wrap but uses float32 precision internally for faster computation
+    Same as fmpfit_f64_pywrap but uses float32 precision internally for faster computation
     and lower memory usage.
     
     Parameters
@@ -257,7 +257,6 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSON
     if len(x) != len(y) or len(x) != len(error):
         raise ValueError("x, y, and error must have the same length")
     
-    mpoints = len(x)
     npar = len(parinfo)
     
     # Extract initial parameter values and bounds
@@ -281,12 +280,12 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSON
         if bounds[i, 0] >= bounds[i, 1]:
             raise ValueError(f"parinfo[{i}]: lower bound must be < upper bound")
     
-    # Call C extension with timing
+    # Call C extension with timing (mpoints/npar inferred from array shapes)
     import time
     t_start = time.perf_counter()
     result_dict = fmpfit_f32_ext.fmpfit_f32(
         x, y, error, p0, bounds,
-        int(mpoints), int(npar), int(deviate_type),
+        int(deviate_type),
         float(xtol), float(ftol), float(gtol),
         int(maxiter), int(quiet)
     )
@@ -312,8 +311,8 @@ def fmpfit_f32_wrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSON
     )
 
 
-def fmpfit_f64_block_wrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
-                          xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
+def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
+                            xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization for multiple spectra (float64)
     
@@ -366,11 +365,11 @@ def fmpfit_f64_block_wrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_f64_block_wrap
+    >>> from ftools.fmpfit import fmpfit_f64_block_pywrap
     >>> n_spectra, n_points, n_params = 100, 5, 3
     >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
     >>> # ... generate y, error, p0, bounds ...
-    >>> result = fmpfit_f64_block_wrap(x, y, error, p0, bounds)
+    >>> result = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
     >>> print(result['best_params'].shape)  # (100, 3)
     """
     # Convert to contiguous float64 arrays
@@ -398,12 +397,12 @@ def fmpfit_f64_block_wrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     if bounds.shape != (n_spectra, npar, 2):
         raise ValueError("bounds must have shape (n_spectra, n_params, 2)")
     
-    # Call C extension
+    # Call C extension (dimensions inferred from array shapes)
     import time
     t_start = time.perf_counter()
     result_dict = fmpfit_f64_block_ext.fmpfit_f64_block(
         x, y, error, p0, bounds,
-        int(n_spectra), int(mpoints), int(npar), int(deviate_type),
+        int(deviate_type),
         float(xtol), float(ftol), float(gtol),
         int(maxiter), int(quiet)
     )
@@ -413,4 +412,245 @@ def fmpfit_f64_block_wrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     return result_dict
 
 
-__all__ = ['fmpfit_f64_wrap', 'fmpfit_f32_wrap', 'fmpfit_f64_block_wrap', 'MPFitResult']
+def fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
+                            xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
+    """
+    Levenberg-Marquardt least-squares minimization for multiple spectra (float32)
+    
+    Fits multiple spectra independently in a single call, using analytical derivatives
+    (Jacobian) for the Gaussian model internally. Uses single precision for faster
+    computation and lower memory usage.
+    
+    Parameters
+    ----------
+    x : ndarray, shape (n_spectra, n_data_points)
+        Independent variable for each spectrum. Data points are contiguous per spectrum.
+    y : ndarray, shape (n_spectra, n_data_points)
+        Dependent variable (measured values) for each spectrum.
+    error : ndarray, shape (n_spectra, n_data_points)
+        Measurement uncertainties for each spectrum.
+    p0 : ndarray, shape (n_spectra, n_params)
+        Initial parameter guesses for each spectrum.
+    bounds : ndarray, shape (n_spectra, n_params, 2)
+        Parameter bounds [min, max] for each parameter of each spectrum.
+    deviate_type : int, optional
+        Model type: 0 = Gaussian (default)
+    xtol : float, optional
+        Relative tolerance in parameter values (default: 1e-6)
+    ftol : float, optional
+        Relative tolerance in chi-square (default: 1e-6)
+    gtol : float, optional
+        Orthogonality tolerance (default: 1e-6)
+    maxiter : int, optional
+        Maximum iterations (default: 2000)
+    quiet : int, optional
+        Suppress output: 1=quiet, 0=verbose (default: 1)
+    
+    Returns
+    -------
+    dict
+        Dictionary with fit results for all spectra (same as fmpfit_f64_block_pywrap)
+    """
+    # Convert to contiguous float32 arrays
+    x = np.ascontiguousarray(x, dtype=np.float32)
+    y = np.ascontiguousarray(y, dtype=np.float32)
+    error = np.ascontiguousarray(error, dtype=np.float32)
+    p0 = np.ascontiguousarray(p0, dtype=np.float32)
+    bounds = np.ascontiguousarray(bounds, dtype=np.float32)
+    
+    # Validate shapes
+    if x.ndim != 2 or y.ndim != 2 or error.ndim != 2:
+        raise ValueError("x, y, and error must be 2D arrays with shape (n_spectra, n_data_points)")
+    if p0.ndim != 2:
+        raise ValueError("p0 must be a 2D array with shape (n_spectra, n_params)")
+    if bounds.ndim != 3:
+        raise ValueError("bounds must be a 3D array with shape (n_spectra, n_params, 2)")
+    
+    n_spectra, mpoints = x.shape
+    _, npar = p0.shape
+    
+    if y.shape != (n_spectra, mpoints) or error.shape != (n_spectra, mpoints):
+        raise ValueError("x, y, and error must have the same shape")
+    if p0.shape[0] != n_spectra:
+        raise ValueError("p0 must have n_spectra rows")
+    if bounds.shape != (n_spectra, npar, 2):
+        raise ValueError("bounds must have shape (n_spectra, n_params, 2)")
+    
+    # Call C extension (dimensions inferred from array shapes)
+    import time
+    t_start = time.perf_counter()
+    result_dict = fmpfit_f32_block_ext.fmpfit_f32_block(
+        x, y, error, p0, bounds,
+        int(deviate_type),
+        float(xtol), float(ftol), float(gtol),
+        int(maxiter), int(quiet)
+    )
+    t_end = time.perf_counter()
+    result_dict['c_time'] = t_end - t_start
+    
+    return result_dict
+
+
+def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NOSONAR
+                        xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
+    """
+    Unified Levenberg-Marquardt least-squares minimization for multiple spectra
+    
+    Fits multiple spectra independently in a single call, using analytical derivatives
+    (Jacobian) for the Gaussian model internally. Automatically selects float32 or
+    float64 precision based on input data dtype or explicit dtype parameter.
+    
+    Parameters
+    ----------
+    x : ndarray, shape (n_spectra, n_data_points)
+        Independent variable for each spectrum.
+    y : ndarray, shape (n_spectra, n_data_points)
+        Dependent variable (measured values) for each spectrum.
+    error : ndarray, shape (n_spectra, n_data_points)
+        Measurement uncertainties for each spectrum.
+    p0 : ndarray, shape (n_spectra, n_params)
+        Initial parameter guesses for each spectrum.
+    bounds : ndarray, shape (n_spectra, n_params, 2)
+        Parameter bounds [min, max] for each parameter of each spectrum.
+    deviate_type : int, optional
+        Model type: 0 = Gaussian (default)
+    dtype : numpy dtype, optional
+        Force specific precision: np.float32 or np.float64.
+        If None (default), infers from input 'y' array dtype.
+    xtol : float, optional
+        Relative tolerance in parameter values (default: 1e-6)
+    ftol : float, optional
+        Relative tolerance in chi-square (default: 1e-6)
+    gtol : float, optional
+        Orthogonality tolerance (default: 1e-6)
+    maxiter : int, optional
+        Maximum iterations (default: 2000)
+    quiet : int, optional
+        Suppress output: 1=quiet, 0=verbose (default: 1)
+    
+    Returns
+    -------
+    dict
+        Dictionary with fit results for all spectra (same as fmpfit_f64_block_pywrap)
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from ftools.fmpfit import fmpfit_block_pywrap
+    >>> n_spectra, n_points, n_params = 100, 5, 3
+    >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
+    >>> # ... generate y, error, p0, bounds ...
+    >>> result = fmpfit_block_pywrap(x, y, error, p0, bounds)  # auto-select dtype
+    >>> result32 = fmpfit_block_pywrap(x, y, error, p0, bounds, dtype=np.float32)
+    """
+    # Determine dtype from input or explicit parameter
+    if dtype is None:
+        y_arr = np.asarray(y)
+        if y_arr.dtype == np.float32:
+            dtype = np.float32
+        else:
+            dtype = np.float64  # Default to float64 for all other types
+    
+    # Dispatch to appropriate wrapper
+    if dtype == np.float32:
+        return fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=deviate_type,
+                                       xtol=xtol, ftol=ftol, gtol=gtol,
+                                       maxiter=maxiter, quiet=quiet)
+    else:
+        return fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=deviate_type,
+                                       xtol=xtol, ftol=ftol, gtol=gtol,
+                                       maxiter=maxiter, quiet=quiet)
+
+
+def fmpfit_pywrap(deviate_type, parinfo=None, functkw=None, dtype=None, #NOSONAR
+                  xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
+    """
+    Unified Levenberg-Marquardt least-squares minimization (auto dtype selection)
+    
+    Uses analytical derivatives (Jacobian) for the Gaussian model internally,
+    which provides faster and more accurate convergence than finite differences.
+    
+    Automatically selects float32 or float64 precision based on input data dtype
+    or explicit dtype parameter.
+    
+    Parameters
+    ----------
+    deviate_type : int
+        Model type: 0 = Gaussian (uses analytical derivatives)
+    parinfo : list of dict
+        Parameter info, each dict contains:
+        - 'value': float, initial parameter value
+        - 'limits': [lower, upper], parameter bounds
+        - 'fixed': int (optional), 1=fixed, 0=free (default)
+    functkw : dict
+        Function keywords containing:
+        - 'x': ndarray, independent variable
+        - 'y': ndarray, dependent variable
+        - 'error': ndarray, measurement uncertainties
+    dtype : numpy dtype, optional
+        Force specific precision: np.float32 or np.float64.
+        If None (default), infers from input 'y' array dtype.
+    xtol : float, optional
+        Relative tolerance in parameter values (default: 1e-6)
+    ftol : float, optional
+        Relative tolerance in chi-square (default: 1e-6)
+    gtol : float, optional
+        Orthogonality tolerance (default: 1e-6)
+    maxiter : int, optional
+        Maximum iterations (default: 2000)
+    quiet : int, optional
+        Suppress output: 1=quiet, 0=verbose (default: 1)
+    
+    Returns
+    -------
+    MPFitResult
+        Object containing fit results and diagnostics
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from ftools.fmpfit import fmpfit_pywrap
+    >>> x = np.linspace(-5, 5, 100)
+    >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
+    >>> error = np.ones_like(y) * 0.1
+    >>> parinfo = [
+    ...     {'value': 1.0, 'limits': [0.0, 10.0]},   # amplitude
+    ...     {'value': 0.0, 'limits': [-5.0, 5.0]},   # mean
+    ...     {'value': 1.0, 'limits': [0.1, 5.0]}     # sigma
+    ... ]
+    >>> functkw = {'x': x, 'y': y, 'error': error}
+    >>> # Auto-select dtype from input
+    >>> result = fmpfit_pywrap(0, parinfo=parinfo, functkw=functkw)
+    >>> # Force float32 precision
+    >>> result32 = fmpfit_pywrap(0, parinfo=parinfo, functkw=functkw, dtype=np.float32)
+    """
+    # Validate inputs
+    if functkw is None:
+        raise ValueError("functkw must be provided")
+    if parinfo is None:
+        raise ValueError("parinfo must be provided")
+    if 'y' not in functkw:
+        raise ValueError("functkw must contain 'y'")
+    
+    # Determine dtype from input or explicit parameter
+    if dtype is None:
+        y_arr = np.asarray(functkw['y'])
+        if y_arr.dtype == np.float32:
+            dtype = np.float32
+        else:
+            dtype = np.float64  # Default to float64 for all other types
+    
+    # Dispatch to appropriate wrapper
+    if dtype == np.float32:
+        return fmpfit_f32_pywrap(deviate_type, parinfo=parinfo, functkw=functkw,
+                                 xtol=xtol, ftol=ftol, gtol=gtol,
+                                 maxiter=maxiter, quiet=quiet)
+    else:
+        return fmpfit_f64_pywrap(deviate_type, parinfo=parinfo, functkw=functkw,
+                                 xtol=xtol, ftol=ftol, gtol=gtol,
+                                 maxiter=maxiter, quiet=quiet)
+
+
+__all__ = ['fmpfit_pywrap', 'fmpfit_f64_pywrap', 'fmpfit_f32_pywrap', 
+           'fmpfit_block_pywrap', 'fmpfit_f64_block_pywrap', 'fmpfit_f32_block_pywrap',
+           'MPFitResult']

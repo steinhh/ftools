@@ -1,6 +1,6 @@
 """Module for comparing fitting results using different optimization methods.
 
-Compares scipy.optimize.curve_fit with fmpfit_f64_wrap for Gaussian fitting.
+Compares scipy.optimize.curve_fit with fmpfit_f64_pywrap for Gaussian fitting.
 
 Usage:
     python compare_c_python.py [N]
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
 import numpy as np
 from scipy.optimize import curve_fit
-from ftools.fmpfit import fmpfit_f64_wrap
+from ftools.fmpfit import fmpfit_f64_pywrap
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for PNG output
 import matplotlib.pyplot as plt
@@ -91,7 +91,7 @@ def gaussian_jacobian(x, i0, mu, sigma):
 
 def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
     """
-    Compare fitting results from scipy.optimize.curve_fit and fmpfit_f64_wrap.
+    Compare fitting results from scipy.optimize.curve_fit and fmpfit_f64_pywrap.
     
     Parameters
     ----------
@@ -157,7 +157,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
             'error': str(e)
         }
     
-    # --- fmpfit_f64_wrap ---
+    # --- fmpfit_f64_pywrap ---
     # Note: fmpfit uses analytical derivatives for the Gaussian model internally.
     # The nfev count includes both residual and Jacobian evaluations.
     try:
@@ -167,7 +167,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
         ]
         functkw = {'x': x, 'y': y, 'error': error}
         
-        result_mpfit = fmpfit_f64_wrap(
+        result_mpfit = fmpfit_f64_pywrap(
             deviate_type=0,  # Gaussian (uses analytical derivatives)
             parinfo=parinfo,
             functkw=functkw
@@ -496,7 +496,7 @@ def run_comparison_n_times(n_runs, seed=41):
     
     # Print header
     print("=" * 120)
-    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_wrap ({n_runs} runs, 5 pixels extracted from 10, Poisson noise)")
+    print(f"Comparison: scipy.optimize.curve_fit vs fmpfit_f64_pywrap ({n_runs} runs, 5 pixels extracted from 10, Poisson noise)")
     print(f"True params randomized: I in {true_I_range}, v in {true_v_range} (from center), w (FWHM) in {true_fwhm_range} pixels")
     print(f"x = {x}, pixel_spacing = {pixel_spacing:.4f}")
     print("=" * 120)

@@ -21,9 +21,9 @@ struct gaussian_private_data_f32
  * Parameters: p[0] = amplitude, p[1] = mean, p[2] = sigma
  */
 int myfunct_gaussian_deviates_with_derivatives_f32(int m, int n, float *p, float *deviates,
-                                                   float **derivs, void *private_data)
+                                                   float **derivs, void *user_data)
 {
-  struct gaussian_private_data_f32 *private = (struct gaussian_private_data_f32 *)private_data;
+  struct gaussian_private_data_f32 *pdata = (struct gaussian_private_data_f32 *)user_data;
   int i;
   float amp, mean, sigma;
   (void)n; /* Suppress unused parameter warning */
@@ -46,9 +46,9 @@ int myfunct_gaussian_deviates_with_derivatives_f32(int m, int n, float *p, float
 
   for (i = 0; i < m; i++)
   {
-    float x_i = private->x[i];
-    float y_i = private->y[i];
-    float err_i = private->error[i];
+    float x_i = pdata->x[i];
+    float y_i = pdata->y[i];
+    float err_i = pdata->error[i];
     float z = (x_i - mean) / sigma;
     float expterm = expf(-0.5f * z * z);
     float model = amp * expterm;
@@ -69,7 +69,7 @@ int myfunct_gaussian_deviates_with_derivatives_f32(int m, int n, float *p, float
   {
     for (i = 0; i < m; i++)
     {
-      float err_i = private->error[i];
+      float err_i = pdata->error[i];
       float expterm = expterms[i];
       float z = z_values[i];
 
