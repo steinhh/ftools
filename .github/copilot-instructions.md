@@ -11,6 +11,30 @@ Four parallel C extension modules with identical structure:
 - `fmedian/` (2D median) and `fmedian3/` (3D median)
 - `fsigma/` (2D sigma) and `fsigma3/` (3D sigma)
 
+## Architecture Pattern: Unified Precision with Preprocessor Macros
+
+The `fmpfit` module uses compile-time macro selection for f32/f64 precision:
+
+**Unified source files:**
+
+- `cmpfit-1.5/mpfit.h` and `mpfit.c` ? core MPFIT with `MPFIT_FLOAT` macro
+- `fmpfit/gaussian_deviate.c` ? Gaussian model with macros: `GD_FUNC_NAME`, `gd_real`, `GD_EXP`
+
+**Build configuration in setup.py:**
+
+```python
+# f64 build (default)
+Extension('fmpfit_f64_ext', sources=[...])
+
+# f32 build
+Extension('fmpfit_f32_ext', sources=[...], define_macros=[('MPFIT_FLOAT', '1')])
+```
+
+**Naming convention:** All Python wrappers use `*_pywrap` suffix:
+
+- `fmpfit_pywrap`, `fmpfit_f64_pywrap`, `fmpfit_f32_pywrap` (single spectrum)
+- `fmpfit_block_pywrap`, `fmpfit_f64_block_pywrap`, `fmpfit_f32_block_pywrap` (block fitting)
+
 **Each module contains:**
 
 - `*_ext.c` - Python/C API extension using NumPy C API
@@ -156,9 +180,11 @@ Use `PyErr_SetString()` for validation errors, return NULL to propagate to Pytho
 
 ## Key Files Reference
 
-- `setup.py` - Defines 4 Extension modules, requires numpy>=1.20
-- `src/ftools/__init__.py` - Unified API dispatch logic
+- `setup.py` - Defines Extension modules (fmedian, fsigma, fgaussian, fmpfit variants), requires numpy>=1.20
+- `src/ftools/__init__.py` - Unified API dispatch logic, exports all public functions
 - `src/ftools/sorting/sorting.c` - Lines 40-130: switch statement for network selection
+- `src/ftools/fmpfit/cmpfit-1.5/` - Unified MPFIT source (mpfit.h, mpfit.c with MPFIT_FLOAT support)
+- `src/ftools/fmpfit/gaussian_deviate.c` - Unified Gaussian model with preprocessor macros
 - `tests/test_parameter_validation.py` - Canonical validation tests
 - `README.md` - User-facing documentation (keep updated with API changes)
 
@@ -183,3 +209,5 @@ Use a terse style for the README files, try to avoid duplication of information.
 Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null, since such redirects cannot be auto-approved by copilot.
 
 Warn me when I'm introducing new features that warrant an increment of the major version number.
+
+Warn me if I'm changing the public API in a way that is not backward compatible.

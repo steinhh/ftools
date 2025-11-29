@@ -169,7 +169,7 @@ pytest tests/test_fmpfit_block_vs_curvefit.py -v  # Block vs SciPy
 - `__init__.py` - Python wrapper and API
 - `fmpfit_f64_ext.c` / `fmpfit_f32_ext.c` - Single-spectrum C extensions
 - `fmpfit_f64_block_ext.c` / `fmpfit_f32_block_ext.c` - Block C extensions
-- `gaussian_deviate_f64.c` / `gaussian_deviate_f32.c` - Gaussian model + Jacobian
+- `gaussian_deviate.c` - Unified Gaussian model + Jacobian (precision via compile-time define)
 - `cmpfit-1.5/` - Unified MPFIT library source (precision via compile-time define)
 - `example_fmpfit_*.py` - Usage examples
 - `benchmark_*.py` - Performance benchmarks

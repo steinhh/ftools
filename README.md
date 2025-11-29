@@ -4,12 +4,18 @@ High-performance C extensions for image processing and curve fitting.
 
 ## Features
 
-| Module | Description |
+| Export | Description |
 |--------|-------------|
 | `fmedian` | Local median filter (2D/3D auto-dispatch) |
+| `fmedian2d`, `fmedian3d` | Direct 2D/3D median |
 | `fsigma` | Local ? filter (2D/3D auto-dispatch) |
-| `fgaussian_f32/f64` | Gaussian profile (Accelerate-optimized) |
-| `fmpfit` | Levenberg-Marquardt fitting (GIL-free, f32/f64, single/block) |
+| `fsigma2d`, `fsigma3d` | Direct 2D/3D sigma |
+| `fgaussian_f32`, `fgaussian_f64` | Gaussian profile (Accelerate-optimized) |
+| `fmpfit_pywrap` | Auto dtype dispatch (single spectrum) |
+| `fmpfit_f64_pywrap`, `fmpfit_f32_pywrap` | Single spectrum fitting |
+| `fmpfit_block_pywrap` | Auto dtype dispatch (block fitting) |
+| `fmpfit_f64_block_pywrap`, `fmpfit_f32_block_pywrap` | Block fitting |
+| `MPFitResult` | Named tuple for fit results |
 
 **Common features:** NaN handling, edge handling, optional center exclusion (fmedian/fsigma).
 
