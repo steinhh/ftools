@@ -63,7 +63,7 @@ result = fmpfit_pywrap(
     ],
     functkw={'x': x, 'y': y, 'error': np.ones_like(y) * 0.1}
 )
-print(f"Best-fit: {result.best_params}, ?²={result.bestnorm:.2f}")
+print(f"Best-fit: {result.best_params}, ?Â²={result.bestnorm:.2f}")
 ```
 
 Block fitting (multiple spectra in one call, GIL-free):
@@ -98,7 +98,7 @@ fsigma(data, window_size, exclude_center=0)
 
 ### fgaussian_f32 / fgaussian_f64
 
-Computes: `i0 * exp(-((x - mu)² / (2 * sigma²))`
+Computes: `i0 * exp(-((x - mu)Â² / (2 * sigmaÂ²))`
 
 ```python
 fgaussian_f32(x, i0, mu, sigma)  # float32, fastest
@@ -133,10 +133,10 @@ pytest --cov=ftools --cov-report=html  # With coverage
 
 | Module | Speedup vs NumPy | Notes |
 |--------|------------------|-------|
-| fgaussian_f32 | 5-10× | Accelerate vvexpf |
-| fgaussian_f64 | 2-3× | Accelerate vvexp |
+| fgaussian_f32 | 5-10Ã— | Accelerate vvexpf |
+| fgaussian_f64 | 2-3Ã— | Accelerate vvexp |
 | fmedian/fsigma | ? | Sorting networks for small windows |
-| fmpfit | ? | GIL-free, 4× speedup with 6 threads |
+| fmpfit | ? | GIL-free, 4Ã— speedup with 6 threads |
 
 ## License
 

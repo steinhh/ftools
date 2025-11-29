@@ -16,7 +16,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools.fmpfit import fmpfit_f64_wrap, fmpfit_f32_wrap
+from ftools.fmpfit import fmpfit_f64_pywrap, fmpfit_f32_pywrap
 
 
 def benchmark_single_fit(dtype_name, wrap_func, use_float32, seed=42):
@@ -162,10 +162,10 @@ def run_comprehensive_benchmark():
         print(f"Running {config_name} benchmark ({nruns} runs with different noise)...")
         
         # Run float64
-        results_f64 = benchmark_batch(nruns, 'float64', fmpfit_f64_wrap, False)
+        results_f64 = benchmark_batch(nruns, 'float64', fmpfit_f64_pywrap, False)
         
         # Run float32
-        results_f32 = benchmark_batch(nruns, 'float32', fmpfit_f32_wrap, True)
+        results_f32 = benchmark_batch(nruns, 'float32', fmpfit_f32_pywrap, True)
         
         # Calculate speedup
         speedup = results_f64['mean_time'] / results_f32['mean_time']

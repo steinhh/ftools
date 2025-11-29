@@ -15,7 +15,7 @@
 #include "cmpfit-1.5/mpfit.h"
 
 /* Include Gaussian deviate computation */
-#include "gaussian_deviate_f32.c"
+#include "gaussian_deviate.c"
 
 /*
  * Core MPFIT function for a single spectrum (float32 version)

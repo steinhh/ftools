@@ -39,4 +39,4 @@ The return type should be as for fmpfit_f64_ext, a dictionary with the same keys
 
 The function should fit each spectrum independently using the provided initial parameters (p0) and parameter limits (bounds).
 
-__init__.py should export fmpfit_f64_block_wrap() as a wrapper around fmpfit_f64_block().
+__init__.py should export `fmpfit_f64_block_pywrap()` as a wrapper around `fmpfit_f64_block()`.

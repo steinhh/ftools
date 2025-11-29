@@ -14,7 +14,7 @@
 #include "cmpfit-1.5/mpfit.h"
 
 /* Include Gaussian deviate computation */
-#include "gaussian_deviate_f64.c"
+#include "gaussian_deviate.c"
 
 /*
  * Core MPFIT function - calls MPFIT library (float64 version)

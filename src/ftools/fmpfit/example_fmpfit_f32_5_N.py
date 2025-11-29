@@ -24,14 +24,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import from local module if running from fmpfit directory
 try:
-    from ftools.fmpfit import fmpfit_f32_wrap
+    from ftools.fmpfit import fmpfit_f32_pywrap
 except ModuleNotFoundError:
     # Try direct import if in fmpfit directory
     import importlib.util
     spec = importlib.util.spec_from_file_location("fmpfit_module", "__init__.py")
     fmpfit_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fmpfit_module)
-    fmpfit_f32_wrap = fmpfit_module.fmpfit_f32_wrap
+    fmpfit_f32_pywrap = fmpfit_module.fmpfit_f32_pywrap
 
 # Parse command line argument for number of runs
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 10
@@ -86,7 +86,7 @@ for i in range(N):
     
     # Time the fit (total time including Python wrapper)
     t0 = time.perf_counter()
-    result = fmpfit_f32_wrap(
+    result = fmpfit_f32_pywrap(
         deviate_type=0,
         parinfo=parinfo,
         functkw=functkw,

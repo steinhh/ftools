@@ -22,7 +22,7 @@ import time
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools import fmpfit_f64_wrap
+from ftools.fmpfit import fmpfit_f64_pywrap
 
 # Parse command line argument for number of runs
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 10
@@ -76,7 +76,7 @@ for i in range(N):
     
     # Time the fit (total time including Python wrapper)
     t0 = time.perf_counter()
-    result = fmpfit_f64_wrap(
+    result = fmpfit_f64_pywrap(
         deviate_type=0,
         parinfo=parinfo,
         functkw=functkw,
