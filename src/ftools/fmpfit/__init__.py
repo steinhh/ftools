@@ -311,7 +311,7 @@ def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOS
     )
 
 
-def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
+def fmpfit_f64_block_pywrap(deviate_type, x, y, error, p0, bounds, #NOSONAR
                             xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization for multiple spectra (float64)
@@ -321,6 +321,8 @@ def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     
     Parameters
     ----------
+    deviate_type : int
+        Model type: 0 = Gaussian (uses analytical derivatives)
     x : ndarray, shape (n_spectra, n_data_points)
         Independent variable for each spectrum. Data points are contiguous per spectrum.
     y : ndarray, shape (n_spectra, n_data_points)
@@ -331,8 +333,6 @@ def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
         Initial parameter guesses for each spectrum.
     bounds : ndarray, shape (n_spectra, n_params, 2)
         Parameter bounds [min, max] for each parameter of each spectrum.
-    deviate_type : int, optional
-        Model type: 0 = Gaussian (default)
     xtol : float, optional
         Relative tolerance in parameter values (default: 1e-6)
     ftol : float, optional
@@ -369,7 +369,7 @@ def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     >>> n_spectra, n_points, n_params = 100, 5, 3
     >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
     >>> # ... generate y, error, p0, bounds ...
-    >>> result = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
+    >>> result = fmpfit_f64_block_pywrap(0, x, y, error, p0, bounds)
     >>> print(result['best_params'].shape)  # (100, 3)
     """
     # Convert to contiguous float64 arrays
@@ -412,7 +412,7 @@ def fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     return result_dict
 
 
-def fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
+def fmpfit_f32_block_pywrap(deviate_type, x, y, error, p0, bounds, #NOSONAR
                             xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
     """
     Levenberg-Marquardt least-squares minimization for multiple spectra (float32)
@@ -423,6 +423,8 @@ def fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     
     Parameters
     ----------
+    deviate_type : int
+        Model type: 0 = Gaussian (uses analytical derivatives)
     x : ndarray, shape (n_spectra, n_data_points)
         Independent variable for each spectrum. Data points are contiguous per spectrum.
     y : ndarray, shape (n_spectra, n_data_points)
@@ -433,8 +435,6 @@ def fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
         Initial parameter guesses for each spectrum.
     bounds : ndarray, shape (n_spectra, n_params, 2)
         Parameter bounds [min, max] for each parameter of each spectrum.
-    deviate_type : int, optional
-        Model type: 0 = Gaussian (default)
     xtol : float, optional
         Relative tolerance in parameter values (default: 1e-6)
     ftol : float, optional
@@ -491,7 +491,7 @@ def fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=0, #NOSONAR
     return result_dict
 
 
-def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NOSONAR
+def fmpfit_block_pywrap(deviate_type, x, y, error, p0, bounds, dtype=None, #NOSONAR
                         xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=1):
     """
     Unified Levenberg-Marquardt least-squares minimization for multiple spectra
@@ -502,6 +502,8 @@ def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NO
     
     Parameters
     ----------
+    deviate_type : int
+        Model type: 0 = Gaussian (uses analytical derivatives)
     x : ndarray, shape (n_spectra, n_data_points)
         Independent variable for each spectrum.
     y : ndarray, shape (n_spectra, n_data_points)
@@ -512,8 +514,6 @@ def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NO
         Initial parameter guesses for each spectrum.
     bounds : ndarray, shape (n_spectra, n_params, 2)
         Parameter bounds [min, max] for each parameter of each spectrum.
-    deviate_type : int, optional
-        Model type: 0 = Gaussian (default)
     dtype : numpy dtype, optional
         Force specific precision: np.float32 or np.float64.
         If None (default), infers from input 'y' array dtype.
@@ -540,8 +540,8 @@ def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NO
     >>> n_spectra, n_points, n_params = 100, 5, 3
     >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
     >>> # ... generate y, error, p0, bounds ...
-    >>> result = fmpfit_block_pywrap(x, y, error, p0, bounds)  # auto-select dtype
-    >>> result32 = fmpfit_block_pywrap(x, y, error, p0, bounds, dtype=np.float32)
+    >>> result = fmpfit_block_pywrap(0, x, y, error, p0, bounds)  # auto-select dtype
+    >>> result32 = fmpfit_block_pywrap(0, x, y, error, p0, bounds, dtype=np.float32)
     """
     # Determine dtype from input or explicit parameter
     if dtype is None:
@@ -553,11 +553,11 @@ def fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0, dtype=None, #NO
     
     # Dispatch to appropriate wrapper
     if dtype == np.float32:
-        return fmpfit_f32_block_pywrap(x, y, error, p0, bounds, deviate_type=deviate_type,
+        return fmpfit_f32_block_pywrap(deviate_type, x, y, error, p0, bounds,
                                        xtol=xtol, ftol=ftol, gtol=gtol,
                                        maxiter=maxiter, quiet=quiet)
     else:
-        return fmpfit_f64_block_pywrap(x, y, error, p0, bounds, deviate_type=deviate_type,
+        return fmpfit_f64_block_pywrap(deviate_type, x, y, error, p0, bounds,
                                        xtol=xtol, ftol=ftol, gtol=gtol,
                                        maxiter=maxiter, quiet=quiet)
 

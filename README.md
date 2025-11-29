@@ -85,7 +85,7 @@ error = np.ones_like(y) * 0.1
 p0 = np.tile([1.0, 0.0, 1.0], (n_spectra, 1))
 bounds = np.array([[[0, 10], [-5, 5], [0.1, 5]]] * n_spectra)
 
-results = fmpfit_block_pywrap(x, y, error, p0, bounds)
+results = fmpfit_block_pywrap(0, x, y, error, p0, bounds)
 # results['best_params'] shape: (n_spectra, npar)
 ```
 

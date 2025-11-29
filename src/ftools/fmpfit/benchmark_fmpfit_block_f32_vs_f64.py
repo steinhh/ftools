@@ -67,17 +67,17 @@ bounds_f32 = bounds_f64.astype(np.float32)
 print("\n--- BLOCK FITTING ---")
 
 # Warmup
-_ = fmpfit_f64_block_pywrap(x_f64[:10], y_f64[:10], error_f64[:10], p0_f64[:10], bounds_f64[:10])
-_ = fmpfit_f32_block_pywrap(x_f32[:10], y_f32[:10], error_f32[:10], p0_f32[:10], bounds_f32[:10])
+_ = fmpfit_f64_block_pywrap(0, x_f64[:10], y_f64[:10], error_f64[:10], p0_f64[:10], bounds_f64[:10])
+_ = fmpfit_f32_block_pywrap(0, x_f32[:10], y_f32[:10], error_f32[:10], p0_f32[:10], bounds_f32[:10])
 
 # Time f64 block
 t0 = time.perf_counter()
-result_f64 = fmpfit_f64_block_pywrap(x_f64, y_f64, error_f64, p0_f64, bounds_f64)
+result_f64 = fmpfit_f64_block_pywrap(0, x_f64, y_f64, error_f64, p0_f64, bounds_f64)
 t_f64_block = time.perf_counter() - t0
 
 # Time f32 block
 t0 = time.perf_counter()
-result_f32 = fmpfit_f32_block_pywrap(x_f32, y_f32, error_f32, p0_f32, bounds_f32)
+result_f32 = fmpfit_f32_block_pywrap(0, x_f32, y_f32, error_f32, p0_f32, bounds_f32)
 t_f32_block = time.perf_counter() - t0
 
 # ============================================================================

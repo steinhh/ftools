@@ -69,7 +69,7 @@ p0 = np.tile([1.0, 0.0, 1.0], (n_spectra, 1))
 bounds = np.array([[[0, 10], [-5, 5], [0.1, 5]]] * n_spectra, dtype=np.float64)
 
 # Fit all spectra (GIL released during C computation)
-results = fmpfit_block_pywrap(x, y, error, p0, bounds)
+results = fmpfit_block_pywrap(0, x, y, error, p0, bounds)
 
 # Results dict with arrays of shape (n_spectra, ...)
 print(results['best_params'].shape)  # (n_spectra, npar)
@@ -124,7 +124,7 @@ result = fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None,
 ### Block Functions
 
 ```python
-results = fmpfit_block_pywrap(x, y, error, p0, bounds, deviate_type=0,
+results = fmpfit_block_pywrap(deviate_type, x, y, error, p0, bounds,
                                dtype=None, xtol=1e-6, ftol=1e-6, gtol=1e-6,
                                maxiter=2000, quiet=1)
 ```

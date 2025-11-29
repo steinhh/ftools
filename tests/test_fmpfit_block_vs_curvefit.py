@@ -87,7 +87,7 @@ def test_fmpfit_block_vs_curvefit(n_spectra):
     x, y, error, p0, bounds = generate_test_spectra(n_spectra, n_points, rng)
     
     # Fit all spectra with fmpfit_block
-    block_result = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
+    block_result = fmpfit_f64_block_pywrap(0, x, y, error, p0, bounds)
     
     # Fit each spectrum with scipy and compare
     for i in range(n_spectra):
@@ -128,7 +128,7 @@ def test_fmpfit_block_vs_curvefit_large():
     x, y, error, p0, bounds = generate_test_spectra(n_spectra, n_points, rng)
     
     # Fit all spectra with fmpfit_block
-    block_result = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
+    block_result = fmpfit_f64_block_pywrap(0, x, y, error, p0, bounds)
     
     # Fit each spectrum with scipy and compare strictly
     n_converged = 0
@@ -179,7 +179,7 @@ def test_fmpfit_block_f32_vs_curvefit():
     
     # Fit with fmpfit_f32_block
     block_result = fmpfit_f32_block_pywrap(
-        x_f32, y_f32, error_f32, p0_f32, bounds_f32
+        0, x_f32, y_f32, error_f32, p0_f32, bounds_f32
     )
     
     # Compare against scipy (using float64 for reference)
@@ -211,7 +211,7 @@ def test_fmpfit_block_consistency_f32_f64():
     x, y, error, p0, bounds = generate_test_spectra(n_spectra, n_points, rng)
     
     # Fit with f64
-    result_f64 = fmpfit_f64_block_pywrap(x, y, error, p0, bounds)
+    result_f64 = fmpfit_f64_block_pywrap(0, x, y, error, p0, bounds)
     
     # Convert to float32 and fit
     x_f32 = x.astype(np.float32)
@@ -221,7 +221,7 @@ def test_fmpfit_block_consistency_f32_f64():
     bounds_f32 = bounds.astype(np.float32)
     
     result_f32 = fmpfit_f32_block_pywrap(
-        x_f32, y_f32, error_f32, p0_f32, bounds_f32
+        0, x_f32, y_f32, error_f32, p0_f32, bounds_f32
     )
     
     # Compare results for converged spectra
