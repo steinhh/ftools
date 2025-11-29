@@ -179,3 +179,7 @@ gcc -O2 -o test_all_sorts.exe test_all_sorts.c -lm
 ```
 
 Use a terse style for the README file, try to avoid duplication of information.
+
+Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null
+
+Warn me when I'm introducing new features that warrant an increment of the major version number.

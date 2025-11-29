@@ -137,7 +137,8 @@ ext_modules = [
 
 setup(
     name="ftools",
-    version="4.0.101",
+    # Version 5 introduces fmpfit
+    version="5.0.1",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
