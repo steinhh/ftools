@@ -178,7 +178,7 @@ gcc -O2 -o test_all_sorts.exe test_all_sorts.c -lm
 ./test_all_sorts.exe  # Compares all networks against qsort with 10,000 random tests each
 ```
 
-Use a terse style for the README file, try to avoid duplication of information.
+Use a terse style for the README files, try to avoid duplication of information.
 
 Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null, since such redirects cannot be auto-approved by copilot.
 
