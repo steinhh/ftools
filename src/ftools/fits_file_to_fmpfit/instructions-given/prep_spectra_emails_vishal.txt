@@ -1,0 +1,168 @@
+Begin forwarded message:
+
+From: Vishal Upendran <vupendran@seti.org>
+Subject: Re: Preprocessing
+Date: 14 November 2025 at 18:27:56 CET
+To: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Cc: Juan Martinez Sykora <jmsykora@seti.org>, Martin Wiesmann <martin.wiesmann@astro.uio.no>, Nabil Freij <nfreij@seti.org>, "Bart De Pontieu" <bdp@lmsal.com>
+
+In multiprocessing, the function is called as poo.map(fit_gaussian, list_of_arguments). In the list of arguments, each element is again a list of [vdop, spectrum, initial conditions, boundary conditions, noise estimate, ...], which is unpacked inside fit_gaussian. The spectrum is of size [1024], where we only the cutout has real values and everything else is nan.  Inside fit_gaussian, we select the non-nan pixels, which can number to 5  or maybe less in edge cases (selection using ~np.isnan()). 
+
+On check #1: If it is turned on, it is done for every spectrum. If the maximum changes with the slack pixels, we just make the array nan and do not fit it, even if the maximum was not at the boundary. This means our GT is either very weak, or this slit has a potential for strong confusion --> so SDC is recommended. The pixel is flagged as not being fitted due to being nan (FLAG = 1). 
+
+On check #2: `local_max` performs this operation for every spectrum. Essentially I take the g1 = sign[gradient[spec]], and then do g2 = sign[sum[gradient[g1]]]. For a clean local maximum (if spec = [0,1,2,1,0]) we will obtain g1 = [1,1,-1,-1], and g2 = sign[sum[[0,-2,0]]] = -1. Such cases satisfy a "local maximum" criterion. However, if we have multiple local maxima in the selected window, we can have multiple sign changes, and such spectra are discarded. You may check the function definition in fitting.py. We do not use this algorithm anymore as it was just being very aggressive in removing pixels which were near the noise level.
+
+
+>>I think we must have a parallel array flags[n, 35px, ysize] per exposure?
+Yes indeed. The FLAGS are: 0 - fit converged, all good. 1 - no local maximum. 2 - fit did not converge. Can be potentially expanded to any other cases that come up.
+
+
+
+From: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Sent: Friday, November 14, 2025 6:55 AM
+To: Vishal Upendran <vupendran@seti.org>
+Cc: Juan Martinez Sykora <jmsykora@seti.org>; Martin Wiesmann <martin.wiesmann@astro.uio.no>; Nabil Freij <nfreij@seti.org>; Bart De Pontieu <bdp@lmsal.com>
+Subject: Re: Preprocessing
+ 
+Ok so you actually have an array [slit, y, raster_step] of lists after extraction, where most lists are 5 long? But before stuffing into curve_fit the "list dimension" is converted into a numpy array dimension, right? This is done on the fly inside fit_gaussian?
+
+The first algorithm checks for consistency of j if the maximum is computed across spect[ i-M ... i+M ] and spect[ i-M-p ... i+M+p ], where p = 1 by default and can be provided by the user. This is the pix_slac condition.
+
+Is this check done (if turned on) even when the maximum is not at the edge (i.e. j == i-M or j == i+M)? And what happens if the concistency check fails? I guess a GFAT failure is flagged? I think we must have a parallel array flags[n, 35px, ysize] per exposure?
+
+2. The second algorithm to be used is a more aggresive, second derivative based method that considers spectra only if there is a maximum. 
+
+Hmm ok. Care to elaborate? Is it simply d2 = spect[p-1] + spect[p+1] - 2*spect[p]?
+
+On 13 Nov 2025, at 20:44, Vishal Upendran <vupendran@seti.org> wrote:
+
+Also to add: I do not pad to 5 pixels. The requirement to have the same array size across all pixels is flexible since we just have them as lists and pass them to multiple threads.
+From: Vishal Upendran <vupendran@seti.org>
+Sent: Thursday, November 13, 2025 11:42 AM
+To: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Cc: Juan Martinez Sykora <jmsykora@seti.org>; Martin Wiesmann <martin.wiesmann@astro.uio.no>; Nabil Freij <nfreij@seti.org>; Bart De Pontieu <bdp@lmsal.com>
+Subject: Re: Preprocessing
+ 
+The base version is just picking out the maximum while selecting j. However, there are `local_maximum_condition` checks in place that can vet pixels if they spectra there have a peak, or if we are selecting a wing of some line. There are two algorithms that do this:
+The first algorithm checks for consistency of j if the maximum is computed across spect[ i-M ... i+M ] and spect[ i-M-p ... i+M+p ], where p = 1 by default and can be provided by the user. This is the pix_slac condition. 
+The second algorithm to be used is a more aggresive, second derivative based method that considers spectra only if there is a maximum. 
+Both of these methods are not enabled by default. However, they may be used to generate flags / confidence in the fits. 
+From: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Sent: Thursday, November 13, 2025 11:24 AM
+To: Vishal Upendran <vupendran@seti.org>
+Cc: Juan Martinez Sykora <jmsykora@seti.org>; Martin Wiesmann <martin.wiesmann@astro.uio.no>; Nabil Freij <nfreij@seti.org>; Bart De Pontieu <bdp@lmsal.com>
+Subject: Re: Preprocessing
+ 
+Thanks, Vishal!
+
+Ok, then it looks very doable from our perspective, to go from an L2 file to a numpy array [npix, x, y [, t]] that can be stuffed right into a fitter. Shouldn't be too hard to get almost everything into C.
+
+Vishal: selecting j, is that just picking the max pixel within the vrange, or something more complicated?
+
+Also, do you pad out to 5 pixels using NaNs when you extract?
+
+Stein
+
+On 13 Nov 2025, at 20:04, Vishal Upendran <vupendran@seti.org> wrote:
+
+Hi Bart,
+
+Yes,  lambda depends on slit. I was sloppy ? I merely pointing to precomputing it from the headers, and not depend on the observations. 
+
+Hi Stein,
+
+Thanks ? you are right, the lambda array itself is [35, 1024]. I agree, it is just an algorithm style ? I just wanted to clarify that the lambda value comes from header, not from data (for some reason everything in loop was an operation on the data in my mind).
+
+Cheers,
+
+Vishal
+  
+From: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Sent: Thursday, November 13, 2025 10:53 AM
+To: Vishal Upendran <vupendran@seti.org>
+Cc: Juan Martinez Sykora <jmsykora@seti.org>; Martin Wiesmann <martin.wiesmann@astro.uio.no>; Nabil Freij <nfreij@seti.org>; Bart De Pontieu <bdp@lmsal.com>
+Subject: Re: Preprocessing
+ 
+Thanks for the feedback, Vishal!
+
+Just a comment that "this is how I would do it, not a description of exactly how you do it". E.g. precomputation of lambda, you calculate lambda as a [35, 1024] array, right? (Ref. Bart's comment). And then extract 1024 pixels for each slit. My approach just short-circuits the precomputation/storage, the important thing is to have the lambda array for the slit currently being processed.
+
+Ah, ok vrange it is - I guess that's the most natural way to specify, I can see how it's useful to think in terms of velocity as the coordinate then. 
+
+Ok "npix". And the bounds on j +/- 2 :)
+
+Thanks again
+On 13 Nov 2025, at 19:34, Vishal Upendran <vupendran@seti.org> wrote:
+
+Hi Stein,
+
+Thanks, this pseudocode is great.  You array shapes are mostly correct ? if we, for whatever reason, encounter a spectrum near the edge of the ccd, there may not be precisely 5 pixels. I just added some comments to your pseudocode:
+
+
+output = [ 5px, 35px, ysize ]
+  lambda_out = [ 5px, 35px, ysize ]
+  foreach slit:
+    calculate lambda[1024px] for this slit along lambda/x dimension //lambda is precomputed from the header, and not computed for each slit.
+    find index i where lambda = rest wavelength //again precomputed from the header using line_wvl and SG_wvl.
+    foreach y, raster_step:
+      spect = input[ *, y, raster_step ]
+      find index j of max (?) pixel inside spect[ i-M ... i+M ] //where M comes from the keyword vrange, and would be different for different bands.
+???output[*, slit, y, raster_step] = spect[j-2...j+2,...] //essentially j-2>0 and j+2<=1023. npix = 2 is a keyword.
+      lambda_out[*, slit, y, raster_step] = lambda[j-2...j+2]
+I have also found that on my machine running the fitting (on x-array) with 11 threads and 3 muse channels takes ~200s. I have now added a precomputed jacobian function for the curve_fit, which gets the time to ~166s, which is a 1.2x speedup.
+
+
+Cheers,
+
+Vishal
+
+   
+From: Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no>
+Sent: Thursday, November 13, 2025 10:10 AM
+To: Juan Martinez Sykora <jmsykora@seti.org>; Martin Wiesmann <martin.wiesmann@astro.uio.no>; Vishal Upendran <vupendran@seti.org>; Nabil Freij <nfreij@seti.org>
+Cc: Bart De Pontieu <bdp@lmsal.com>
+Subject: Re: Preprocessing
+ 
+Should've said "mixed numpy + C pipeline".
+
+On 13 Nov 2025, at 19:06, Stein Vidar Hagfors Haugan <s.v.h.haugan@astro.uio.no> wrote:
+
+So in case we want to make a fully optimised numpy-only pipeline I need to make sure I understand the preprocessing right. I think I got it yesterday, just checking:
+
+We consider just a single exposure first (common for sit-and-stare and rasters), and the rest is "simple" (except for the interleaving of rasters). I'm assuming we extract 5 pixels, and that the min/max velocity bound corresponds to M pixels to each side of the rest wavelength pixel.
+
+Sorry if I use different notation (I know I do), but this is what I am used to when it comes to line fitting, and we're discussing a possible implementation by me :). It's just as confusing to me when "dopp" is used to describe a coordinate that is a velocity (if I got it right :).
+
+input dimensions:  [ lambda/x[1024px], ysize ]
+output dimensions: [ lambda[5px], x[35px], ysize ]  (times N lines)
+
+Very-pseudo-code:
+
+  output = [ 5px, 35px, ysize ]
+  lambda_out = [ 5px, 35px, ysize ]
+  foreach slit:
+    calculate lambda[1024px] for this slit along lambda/x dimension
+    find index i where lambda = rest wavelength
+    foreach y:
+      spect = input[ *, y ]
+      find index j of max (?) pixel inside spect[ i-M ... i+M ]
+      output[*, slit, y] = spect[j-2...j+2]
+      lambda_out[*, slit, y] = lambda[j-2...j+2]
+
+Right? Then, for sit and stare it is trivial to just collect the output arrays along a time dimension. So we get:
+
+DATA with dimensions [ 5px, 35px, ysize, t]
+
+For rasters with nstep raster steps, let's for simplicity's sake assume we first do exactly the same, so we get:
+
+DATA_IN = [ 5px, 35px, ysize, nstep]
+DATA_OUT = [ 5px, 35*nstep, ysize]
+
+foreach slit:
+  foreach step:
+    DATA_OUT[ *, step + slit*35, *] = DATA_IN[ *, slit, *, step]
+
+Right?
+
+Cheers,
+Stein
