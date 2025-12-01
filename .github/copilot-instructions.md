@@ -159,6 +159,12 @@ gcc -O2 -o test_all_sorts.exe test_all_sorts.c -lm
 - C implementation converts to half-sizes internally: `xsize_half = xsize / 2`
 - All window sizes must be **odd positive integers**
 
+### MUSE 5-point Fits (Note)
+
+- **Context:** Typical MUSE spectral extraction yields about **5 data points** per extracted spectrum.
+- **Behavior:** Minimal-point fits (?5 points) are numerically harder and often require more iterations; expect lower per-spectrum throughput compared with larger-m spectra used in benchmarks.
+- **Examples:** See `src/ftools/fmpfit/example_fmpfit_block_f32_5_N.py` and `src/ftools/fmpfit/example_fmpfit_block_f64_5_N.py` for annotated 5-point block-fitting examples and measured throughput on this machine.
+
 ### Include Pattern for Sorting
 
 All `*_ext.c` files include sorting via relative path:
