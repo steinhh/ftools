@@ -217,3 +217,5 @@ Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null,
 Warn me when I'm introducing new features that warrant an increment of the major version number.
 
 Warn me if I'm changing the public API in a way that is not backward compatible.
+
+Log all prompts in chats/log.md. When my prompts refer to previous prompts, make sure the log file contains enough context to understand the references. When my prompts refer to options you have given (as in "do 1 and 2"), add those options to the log file for context.
