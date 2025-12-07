@@ -177,7 +177,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
             'params': result_mpfit.best_params,
             'errors': result_mpfit.xerror,
             'errors_scaled': result_mpfit.xerror_scaled,
-            'errors_cov': result_mpfit.xerror_cov,
             'chisq': result_mpfit.bestnorm,
             'reduced_chisq': result_mpfit.bestnorm / (len(x) - len(p0)) if len(x) > len(p0) else np.nan,
             'niter': result_mpfit.niter,
@@ -192,7 +191,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
             'params': np.array([np.nan] * len(p0)),
             'errors': np.array([np.nan] * len(p0)),
             'errors_scaled': np.array([np.nan] * len(p0)),
-            'errors_cov': np.array([np.nan] * len(p0)),
             'chisq': np.nan,
             'reduced_chisq': np.nan,
             'covar': None,
@@ -619,17 +617,15 @@ Error estimation methods:
                      = scaled by sqrt(chi2/dof) so reduced_chi2 = 1
   - mpfit xerror:    sqrt(diag(covar)) from MPFIT, unscaled (assumes input errors are correct)
   - xerror_scaled:   xerror * sqrt(chi2/dof) - should match scipy errors
-  - xerror_cov:      sqrt(diag(covar)) computed separately - should match xerror exactly
 """)
     
     # Table header for error comparison
-    print(f"\n{'':>4} || {'Scipy errors':^30} || {'MPFIT xerror_scaled':^30} || {'Ratio (scaled/scipy)':^20} || {'xerror vs xerror_cov':^15} ||")
-    print(f"{'Run':>4} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'I':>6} {'v':>6} {'w':>6} || {'max_diff':>14} ||")
-    print("-" * 130)
+    print(f"\n{'':>4} || {'Scipy errors':^30} || {'MPFIT xerror_scaled':^30} || {'Ratio (scaled/scipy)':^20} ||")
+    print(f"{'Run':>4} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'I':>6} {'v':>6} {'w':>6} ||")
+    print("-" * 110)
     
     # Collect ratio statistics
     ratios_I, ratios_v, ratios_w = [], [], []
-    xerror_diffs = []
     
     for r in results_list:
         scipy_ok = r['scipy']['success']
@@ -638,8 +634,6 @@ Error estimation methods:
         if scipy_ok and mpfit_ok:
             sp_err = r['scipy']['errors']
             mp_err_scaled = r['fmpfit']['errors_scaled']
-            mp_err_cov = r['fmpfit']['errors_cov']
-            mp_err = r['fmpfit']['errors']
             
             # Compute ratios (scaled/scipy)
             ratio_I = mp_err_scaled[0] / sp_err[0] if sp_err[0] > 0 else np.nan
@@ -650,38 +644,24 @@ Error estimation methods:
             ratios_v.append(ratio_v)
             ratios_w.append(ratio_w)
             
-            # Check xerror vs xerror_cov (should be identical)
-            xerror_diff = np.max(np.abs(mp_err - mp_err_cov))
-            xerror_diffs.append(xerror_diff)
-            
             scipy_str = f"{sp_err[0]:>9.4f} {sp_err[1]:>9.4f} {sp_err[2]:>9.4f}"
             mpfit_str = f"{mp_err_scaled[0]:>9.4f} {mp_err_scaled[1]:>9.4f} {mp_err_scaled[2]:>9.4f}"
             ratio_str = f"{ratio_I:>6.3f} {ratio_v:>6.3f} {ratio_w:>6.3f}"
-            diff_str = f"{xerror_diff:>14.2e}"
         else:
             scipy_str = f"{'-':>9} {'-':>9} {'-':>9}"
             mpfit_str = f"{'-':>9} {'-':>9} {'-':>9}"
             ratio_str = f"{'-':>6} {'-':>6} {'-':>6}"
-            diff_str = f"{'-':>14}"
         
-        print(f"{r['run']:>4} || {scipy_str} || {mpfit_str} || {ratio_str} || {diff_str} ||")
+        print(f"{r['run']:>4} || {scipy_str} || {mpfit_str} || {ratio_str} ||")
     
-    print("-" * 130)
+    print("-" * 110)
     
     # Summary statistics
     if ratios_I:
-        print(f"\nRatio statistics (xerror_scaled / scipy_errors):")
+        print("\nRatio statistics (xerror_scaled / scipy_errors):")
         print(f"  I:  mean={np.mean(ratios_I):.4f}, std={np.std(ratios_I):.4f}, min={np.min(ratios_I):.4f}, max={np.max(ratios_I):.4f}")
         print(f"  v:  mean={np.mean(ratios_v):.4f}, std={np.std(ratios_v):.4f}, min={np.min(ratios_v):.4f}, max={np.max(ratios_v):.4f}")
         print(f"  w:  mean={np.mean(ratios_w):.4f}, std={np.std(ratios_w):.4f}, min={np.min(ratios_w):.4f}, max={np.max(ratios_w):.4f}")
-        
-        print(f"\nxerror vs xerror_cov consistency:")
-        print(f"  max difference: {np.max(xerror_diffs):.2e}")
-        print(f"  mean difference: {np.mean(xerror_diffs):.2e}")
-        if np.max(xerror_diffs) < 1e-10:
-            print("  -> xerror and xerror_cov are numerically identical (as expected)")
-        else:
-            print("  -> WARNING: xerror and xerror_cov differ unexpectedly!")
     
     print("=" * 120)
     
