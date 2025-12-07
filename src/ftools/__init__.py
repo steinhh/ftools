@@ -101,7 +101,13 @@ fsigma2d = _fsigma2d
 fmedian3d = _fmedian3d
 fsigma3d = _fsigma3d
 
-__version__ = "5.0.12"
+# Get version from package metadata (set by setup.py)
+try:
+    from importlib.metadata import version as _get_version
+    __version__ = _get_version("ftools")
+except Exception:
+    __version__ = "unknown"
+
 __all__ = ["fmedian", "fsigma", "fgaussian_f32", "fgaussian_f64", "fmedian2d", "fsigma2d", "fmedian3d", "fsigma3d",
            "fmpfit_pywrap", "fmpfit_f64_pywrap", "fmpfit_f32_pywrap",
            "fmpfit_block_pywrap", "fmpfit_f64_block_pywrap", "fmpfit_f32_block_pywrap",
