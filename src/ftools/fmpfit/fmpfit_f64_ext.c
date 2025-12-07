@@ -180,13 +180,17 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   double *resid = (double *)malloc(mpoints * sizeof(double));
   double *xerror = (double *)malloc(npar * sizeof(double));
   double *covar = (double *)malloc(npar * npar * sizeof(double));
+  double *xerror_scaled = (double *)malloc(npar * sizeof(double));
+  double *xerror_cov = (double *)malloc(npar * sizeof(double));
 
-  if (!best_params || !resid || !xerror || !covar)
+  if (!best_params || !resid || !xerror || !covar || !xerror_scaled || !xerror_cov)
   {
     free(best_params);
     free(resid);
     free(xerror);
     free(covar);
+    free(xerror_scaled);
+    free(xerror_cov);
     Py_DECREF(x_contig);
     Py_DECREF(y_contig);
     Py_DECREF(error_contig);
@@ -212,6 +216,17 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
                           best_params, &bestnorm, &orignorm,
                           &niter, &nfev, &status,
                           resid, xerror, covar);
+
+    /* Compute xerror_cov (sqrt of covariance diagonal) and xerror_scaled */
+    /* xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
+    int dof = mpoints - npar;
+    double scale_factor = (dof > 0) ? sqrt(bestnorm / dof) : 1.0;
+    for (int i = 0; i < npar; i++)
+    {
+      double cov_diag = covar[i * npar + i];
+      xerror_cov[i] = (cov_diag > 0) ? sqrt(cov_diag) : 0.0;
+      xerror_scaled[i] = xerror[i] * scale_factor;
+    }
     Py_END_ALLOW_THREADS
   }
 
@@ -224,17 +239,24 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   PyArrayObject *resid_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_resid, NPY_DOUBLE);
   PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
   PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_DOUBLE);
+  PyArrayObject *xerror_scaled_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
+  PyArrayObject *xerror_cov_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
 
-  if (!best_params_array || !resid_array || !xerror_array || !covar_array)
+  if (!best_params_array || !resid_array || !xerror_array || !covar_array ||
+      !xerror_scaled_array || !xerror_cov_array)
   {
     Py_XDECREF(best_params_array);
     Py_XDECREF(resid_array);
     Py_XDECREF(xerror_array);
     Py_XDECREF(covar_array);
+    Py_XDECREF(xerror_scaled_array);
+    Py_XDECREF(xerror_cov_array);
     free(best_params);
     free(resid);
     free(xerror);
     free(covar);
+    free(xerror_scaled);
+    free(xerror_cov);
     Py_DECREF(x_contig);
     Py_DECREF(y_contig);
     Py_DECREF(error_contig);
@@ -248,12 +270,16 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   memcpy(PyArray_DATA(resid_array), resid, mpoints * sizeof(double));
   memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(double));
   memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(double));
+  memcpy(PyArray_DATA(xerror_scaled_array), xerror_scaled, npar * sizeof(double));
+  memcpy(PyArray_DATA(xerror_cov_array), xerror_cov, npar * sizeof(double));
 
   /* Free temporary buffers */
   free(best_params);
   free(resid);
   free(xerror);
   free(covar);
+  free(xerror_scaled);
+  free(xerror_cov);
 
   /* Release input arrays */
   Py_DECREF(x_contig);
@@ -291,12 +317,16 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   PyDict_SetItemString(result, "resid", (PyObject *)resid_array);
   PyDict_SetItemString(result, "xerror", (PyObject *)xerror_array);
   PyDict_SetItemString(result, "covar", (PyObject *)covar_array);
+  PyDict_SetItemString(result, "xerror_scaled", (PyObject *)xerror_scaled_array);
+  PyDict_SetItemString(result, "xerror_cov", (PyObject *)xerror_cov_array);
 
   /* Decrement reference counts (dict holds references) */
   Py_DECREF(best_params_array);
   Py_DECREF(resid_array);
   Py_DECREF(xerror_array);
   Py_DECREF(covar_array);
+  Py_DECREF(xerror_scaled_array);
+  Py_DECREF(xerror_cov_array);
 
   return result;
 }
