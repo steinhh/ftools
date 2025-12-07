@@ -62,8 +62,7 @@ def benchmark_single_fit(dtype_name, wrap_func, use_float32, seed=42):
         xtol=1.0e-6,
         ftol=1.0e-6,
         gtol=1.0e-6,
-        maxiter=2000,
-        quiet=1
+            maxiter=2000,
     )
     
     # Timed run
@@ -75,8 +74,7 @@ def benchmark_single_fit(dtype_name, wrap_func, use_float32, seed=42):
         xtol=1.0e-6,
         ftol=1.0e-6,
         gtol=1.0e-6,
-        maxiter=2000,
-        quiet=1
+            maxiter=2000,
     )
     end = time.perf_counter()
     

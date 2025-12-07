@@ -53,7 +53,7 @@ def fit_gaussian_mpfit(in_args):
             'limits':[bounds[0][i],bounds[1][i]]} for i in range(len(p0))]
 
         mp_ = mpfit(deviates,parinfo=parinfo, functkw=functkw, xtol=1.0E-6, ftol=1.0E-6, gtol=1.0E-6,
-                        maxiter=2000, quiet=1)
+                        maxiter=2000)
         popt = mp_.params
         dof = len(xdata) - len(p0)  # No. of observations  - no. of fitted params.
         chisquare = reduced_chisquare(ydata, fgaussian(xdata, *popt), y_sigma, dof)

@@ -83,7 +83,7 @@ print(results['status'])             # (n_spectra,)
 ```python
 result = fmpfit_pywrap(deviate_type, parinfo=None, functkw=None,
                        dtype=None, xtol=1e-6, ftol=1e-6, gtol=1e-6,
-                       maxiter=2000, quiet=1)
+                       maxiter=2000)
 ```
 
 ### fmpfit_f64_pywrap / fmpfit_f32_pywrap
@@ -91,7 +91,7 @@ result = fmpfit_pywrap(deviate_type, parinfo=None, functkw=None,
 ```python
 result = fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, 
                            xtol=1e-6, ftol=1e-6, gtol=1e-6, 
-                           maxiter=2000, quiet=1)
+                           maxiter=2000)
 ```
 
 **Parameters:**
@@ -106,7 +106,7 @@ result = fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None,
   - `'error'`: Measurement uncertainties (ndarray)
 - `xtol`, `ftol`, `gtol` (float): Convergence tolerances
 - `maxiter` (int): Maximum iterations
-- `quiet` (int): 1=quiet, 0=verbose
+No runtime verbosity option exposed; extension runs silently by default.
 
 **Returns:** `MPFitResult` object with attributes:
 
@@ -126,7 +126,7 @@ result = fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None,
 ```python
 results = fmpfit_block_pywrap(deviate_type, x, y, error, p0, bounds,
                                dtype=None, xtol=1e-6, ftol=1e-6, gtol=1e-6,
-                               maxiter=2000, quiet=1)
+                               maxiter=2000)
 ```
 
 Also: `fmpfit_f64_block_pywrap`, `fmpfit_f32_block_pywrap`

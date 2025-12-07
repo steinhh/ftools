@@ -91,7 +91,6 @@ result = fmpfit_f32_block_pywrap(
     ftol=1.0e-6,
     gtol=1.0e-6,
     maxiter=2000,
-    quiet=1
 )
 elapsed = time.perf_counter() - t0
 

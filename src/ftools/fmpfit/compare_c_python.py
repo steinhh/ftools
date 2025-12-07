@@ -428,7 +428,7 @@ def run_comparison_n_times(n_runs, seed=41):
     # Storage for results
     results_list = []
 
-    true_I_range = (10.0, 50.0)
+    true_I_range = (100.0, 500.0)
     true_v_range = (-0.5, 0.5)  # Within +/-0.5 pixels of center (x=0)
     true_fwhm_range = (2, 5.0)  # FWHM from 2 to 5 pixels
 
