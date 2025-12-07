@@ -1,0 +1,1 @@
+/Users/steinhh/global-copilot-instructions.md

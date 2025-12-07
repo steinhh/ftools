@@ -1,5 +1,7 @@
 # ftools Copilot Instructions
 
+Include global-copilot-instructions.md as a reference.
+
 ## Project Overview
 
 `ftools` provides high-performance C-extension local image filters (`fmedian`, `fsigma`) for cosmic ray detection. The architecture separates 2D and 3D implementations into parallel modules that share a unified Python API.
@@ -200,22 +202,3 @@ This project uses `tcsh` shell. Use tcsh-compatible syntax:
 
 - Output redirection: `command >& file` not `command &> file`
 - Pipe stderr: `command |& filter` not `command 2>&1 | filter`
-
-## Developer-added instructions
-
-When creating executable files from C test programs, use file extension `.exe` to avoid confusion with source files. For example:
-
-```bash
-gcc -O2 -o test_all_sorts.exe test_all_sorts.c -lm
-./test_all_sorts.exe  # Compares all networks against qsort with 10,000 random tests each
-```
-
-Use a terse style for the README files, try to avoid duplication of information.
-
-Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null, since such redirects cannot be auto-approved by copilot.
-
-Warn me when I'm introducing new features that warrant an increment of the major version number.
-
-Warn me if I'm changing the public API in a way that is not backward compatible.
-
-Log all prompts in chats/log.md. When my prompts refer to previous prompts, make sure the log file contains enough context to understand the references. When my prompts refer to options you have given (as in "do 1 and 2"), add those options to the log file for context.
