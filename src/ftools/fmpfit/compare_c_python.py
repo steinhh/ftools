@@ -428,7 +428,7 @@ def run_comparison_n_times(n_runs, seed=41):
     # Storage for results
     results_list = []
 
-    true_I_range = (100.0, 500.0)
+    true_I_range = (5.0, 10.0)
     true_v_range = (-0.5, 0.5)  # Within +/-0.5 pixels of center (x=0)
     true_fwhm_range = (2, 5.0)  # FWHM from 2 to 5 pixels
 
@@ -485,8 +485,8 @@ def run_comparison_n_times(n_runs, seed=41):
         p0_w = estimate_fwhm_from_data(x, y, max_idx)
         
         p0 = [p0_I, p0_v, p0_w]
-        # Amplitude upper bound: 2 sigma (Poisson) above max measured value
-        I_upper = y[max_idx] + 2.0 * error[max_idx]
+        # Amplitude upper bound: 5 sigma (Poisson) above max measured value
+        I_upper = y[max_idx] + 5.0 * error[max_idx]
         bounds = [(0.0, I_upper), (x[0], x[-1]), (0.7, 5.0)]
         
         result = compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing)
@@ -506,13 +506,14 @@ def run_comparison_n_times(n_runs, seed=41):
     print("=" * 120)
     
     # Table header
-    print(f"\n{'':>4} || {'True':^20} || {'Scipy':^53} || {'MPFIT':^53} ||")
-    print(f"{'Run':>4} || {'I':>6} {'v':>6} {'w':>6} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} ||")
-    print("-" * 146)
+    print(f"\n{'':>4} || {'True':^20} || {'Scipy':^53} || {'MPFIT':^53} || {'':>7} ||")
+    print(f"{'Run':>4} || {'I':>6} {'v':>6} {'w':>6} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} || {'I':>6} {'v':>6} {'w':>6} | {'I%':>6} {'v_px':>6} {'w%':>6} {'rchi2':>5} {'FAIL':>4} || {'MISMTCH':>7} ||")
+    print("-" * 158)
     
     # Print each run
     n_scipy_fail = 0
     n_mpfit_fail = 0
+    n_mismatch = 0
     
     # Accumulators for signed differences (for averaging)
     sp_I_pct_list, sp_v_px_list, sp_w_pct_list = [], [], []
@@ -582,9 +583,32 @@ def run_comparison_n_times(n_runs, seed=41):
             n_mpfit_fail += 1
             mpfit_str = f"{'-':>6} {'-':>6} {'-':>6} | {'-':>6} {'-':>6} {'-':>6} {'-':>5} {'****':>4}"
         
-        print(f"{r['run']:>4} || {true_str} || {scipy_str} || {mpfit_str} ||")
+        # Check for mismatch between scipy and mpfit (flag if I, v, or w differ significantly)
+        mismatch_flags = ''
+        if scipy_ok and mpfit_ok:
+            sp = r['scipy']['params']
+            mp = r['fmpfit']['params']
+            # I mismatch: >0.1% relative difference
+            I_mismatch = abs(sp[0] - mp[0]) / max(abs(sp[0]), abs(mp[0]), 1e-10) > 0.01
+            # v mismatch: >0.05 pixels
+            v_mismatch = abs(sp[1] - mp[1]) > 0.05
+            # w mismatch: >1% relative difference
+            w_mismatch = abs(sp[2] - mp[2]) / max(abs(sp[2]), abs(mp[2]), 1e-10) > 0.01
+            if I_mismatch:
+                mismatch_flags += 'I'
+            if v_mismatch:
+                mismatch_flags += 'v'
+            if w_mismatch:
+                mismatch_flags += 'w'
+            if mismatch_flags:
+                n_mismatch += 1
+        elif scipy_ok != mpfit_ok:
+            mismatch_flags = 'FAIL'
+            n_mismatch += 1
+        
+        print(f"{r['run']:>4} || {true_str} || {scipy_str} || {mpfit_str} || {mismatch_flags:>7} ||")
     
-    print("-" * 146)
+    print("-" * 158)
     
     # Compute and print averages
     def avg(lst):
@@ -596,10 +620,11 @@ def run_comparison_n_times(n_runs, seed=41):
     # Average line (aligned with difference columns)
     avg_scipy = f"{'':>6} {'':>6} {'':>6} | {sp_I_avg:>+6.1f} {sp_v_avg:>+6.2f} {sp_w_avg:>+6.1f} {'':>5} {'':>4}"
     avg_mpfit = f"{'':>6} {'':>6} {'':>6} | {mp_I_avg:>+6.1f} {mp_v_avg:>+6.2f} {mp_w_avg:>+6.1f} {'':>5} {'':>4}"
-    print(f"{'Avg':>4} || {'':>20} || {avg_scipy} || {avg_mpfit} ||")
+    print(f"{'Avg':>4} || {'':>20} || {avg_scipy} || {avg_mpfit} || {'':>7} ||")
     
-    print("-" * 146)
+    print("-" * 158)
     print(f"Summary: Scipy {n_scipy_fail}/{n_runs} failed, MPFIT {n_mpfit_fail}/{n_runs} failed (I/w: 10% tol, v: 0.1 px tol)")
+    print(f"         Scipy vs MPFIT mismatch: {n_mismatch}/{n_runs} (I/w: 5% tol, v: 0.05 px tol)")
     
     # Generate plots for the first num_plot runs
     num_plot = 20
@@ -620,9 +645,9 @@ Error estimation methods:
 """)
     
     # Table header for error comparison
-    print(f"\n{'':>4} || {'Scipy errors':^30} || {'MPFIT xerror_scaled':^30} || {'Ratio (scaled/scipy)':^20} ||")
-    print(f"{'Run':>4} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'err_I':>9} {'err_v':>9} {'err_w':>9} || {'I':>6} {'v':>6} {'w':>6} ||")
-    print("-" * 110)
+    print(f"\n{'':>4} || {'Scipy errors':^36} || {'MPFIT xerror_scaled':^36} || {'Ratio (scaled/scipy)':^20} ||")
+    print(f"{'Run':>4} || {'err_I':>9} {'err_v':>9} {'err_w':>9} {'rchi2':>5} || {'err_I':>9} {'err_v':>9} {'err_w':>9} {'rchi2':>5} || {'I':>6} {'v':>6} {'w':>6} ||")
+    print("-" * 124)
     
     # Collect ratio statistics
     ratios_I, ratios_v, ratios_w = [], [], []
@@ -633,7 +658,9 @@ Error estimation methods:
         
         if scipy_ok and mpfit_ok:
             sp_err = r['scipy']['errors']
+            sp_rchi2 = r['scipy']['reduced_chisq']
             mp_err_scaled = r['fmpfit']['errors_scaled']
+            mp_rchi2 = r['fmpfit']['reduced_chisq']
             
             # Compute ratios (scaled/scipy)
             ratio_I = mp_err_scaled[0] / sp_err[0] if sp_err[0] > 0 else np.nan
@@ -644,17 +671,17 @@ Error estimation methods:
             ratios_v.append(ratio_v)
             ratios_w.append(ratio_w)
             
-            scipy_str = f"{sp_err[0]:>9.4f} {sp_err[1]:>9.4f} {sp_err[2]:>9.4f}"
-            mpfit_str = f"{mp_err_scaled[0]:>9.4f} {mp_err_scaled[1]:>9.4f} {mp_err_scaled[2]:>9.4f}"
+            scipy_str = f"{sp_err[0]:>9.4f} {sp_err[1]:>9.4f} {sp_err[2]:>9.4f} {sp_rchi2:>5.2f}"
+            mpfit_str = f"{mp_err_scaled[0]:>9.4f} {mp_err_scaled[1]:>9.4f} {mp_err_scaled[2]:>9.4f} {mp_rchi2:>5.2f}"
             ratio_str = f"{ratio_I:>6.3f} {ratio_v:>6.3f} {ratio_w:>6.3f}"
         else:
-            scipy_str = f"{'-':>9} {'-':>9} {'-':>9}"
-            mpfit_str = f"{'-':>9} {'-':>9} {'-':>9}"
+            scipy_str = f"{'-':>9} {'-':>9} {'-':>9} {'-':>5}"
+            mpfit_str = f"{'-':>9} {'-':>9} {'-':>9} {'-':>5}"
             ratio_str = f"{'-':>6} {'-':>6} {'-':>6}"
         
         print(f"{r['run']:>4} || {scipy_str} || {mpfit_str} || {ratio_str} ||")
     
-    print("-" * 110)
+    print("-" * 124)
     
     # Summary statistics
     if ratios_I:
