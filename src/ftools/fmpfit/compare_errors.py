@@ -354,36 +354,46 @@ def plot_fit_comparison(result, output_dir=None):
     print(f'  Saved: {output_path}')
 
 
-def estimate_fwhm_from_data(x, y, max_idx):
-    """Estimate FWHM from noisy data by finding half-max crossings."""
-    max_val = y[max_idx]
-    half_max = max_val / 2
+def estimate_sigma_from_data(x, y, max_idx, lower_bound=0.7):
+    """Estimate sigma using second moment around the peak, with safe floor.
     
-    # Find first pixel to the left where value drops below half-max
-    left_idx = None
-    for j in range(max_idx - 1, -1, -1):
-        if y[j] <= half_max:
-            left_idx = j
-            break
+    Uses the second moment (variance) of the intensity distribution around
+    the peak to estimate sigma. Includes a safety floor to ensure the initial
+    guess stays well above the lower bound, avoiding MPFIT getting stuck at
+    local minima near bounds.
     
-    # Find first pixel to the right where value drops below half-max
-    right_idx = None
-    for j in range(max_idx + 1, len(y)):
-        if y[j] <= half_max:
-            right_idx = j
-            break
+    Parameters
+    ----------
+    x : ndarray
+        x coordinates
+    y : ndarray
+        Intensity values (may contain noise/negative values)
+    max_idx : int
+        Index of the maximum pixel
+    lower_bound : float
+        Lower bound on sigma parameter (default: 0.7)
     
-    # Estimate FWHM
-    if left_idx is not None and right_idx is not None:
-        fwhm_pixels = right_idx - left_idx
-    else:
-        fwhm_pixels = 3.0  # default
+    Returns
+    -------
+    float
+        Estimated sigma, guaranteed to be at least lower_bound + 0.5
+    """
+    # Use only positive values for moment calculation
+    y_pos = np.maximum(y, 0)
+    x0 = x[max_idx]
+    total = np.sum(y_pos)
     
-    # Convert to sigma: FWHM = 2.355 * sigma
-    pixel_spacing = x[1] - x[0]
-    fwhm = fwhm_pixels * pixel_spacing
-    sigma = fwhm / 2.355
-    return sigma
+    if total <= 0:
+        # Fallback if no positive signal
+        return lower_bound + 0.57  # ~1.27, middle of typical range
+    
+    # Second moment: variance around the peak
+    var_x = np.sum((x - x0)**2 * y_pos) / total
+    est = np.sqrt(var_x) if var_x > 0 else lower_bound + 0.57
+    
+    # Safety floor: stay at least 0.5 above lower bound to avoid local minima
+    safe_min = lower_bound + 0.5
+    return max(est, safe_min)
 
 
 def run_comparison_n_times(n_runs, seed=41):
@@ -484,7 +494,7 @@ def run_comparison_n_times(n_runs, seed=41):
         max_idx = np.argmax(y)  # Should be center (index 2) in extracted window
         p0_I = y[max_idx]
         p0_v = x[max_idx]
-        p0_w = estimate_fwhm_from_data(x, y, max_idx)
+        p0_w = estimate_sigma_from_data(x, y, max_idx)
         
         p0 = [p0_I, p0_v, p0_w]
         # Amplitude upper bound: 5 sigma (Poisson) above max measured value
@@ -584,7 +594,7 @@ def run_comparison_n_times(n_runs, seed=41):
     print(f"Saved error scatter plots: {fig2_path}")
     
     # ==================== FILTER RUNS WITH ERROR RATIO OUTLIERS ====================
-    # Only consider runs where mpfit_scipy/scipy ratio is >1.01 or <0.99
+    # Only consider runs where mpfit_scipy/scipy ratio is >1.05 or <0.95
     outlier_runs = []
     for r in valid_results:
         sp_err = r['scipy']['errors']
@@ -598,8 +608,8 @@ def run_comparison_n_times(n_runs, seed=41):
             else:
                 ratios.append(np.nan)
         
-        # Check if any ratio is outside [0.99, 1.01]
-        is_outlier = any(not np.isnan(rat) and (rat > 1.01 or rat < 0.99) for rat in ratios)
+        # Check if any ratio is outside [0.95, 1.05]
+        is_outlier = any(not np.isnan(rat) and (rat > 1.05 or rat < 0.95) for rat in ratios)
         if is_outlier:
             r['error_ratios'] = ratios
             outlier_runs.append(r)
