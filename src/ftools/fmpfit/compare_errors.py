@@ -730,6 +730,37 @@ def run_comparison_n_times(n_runs, seed=41):
     
     print("=" * 120)
     
+    # ==================== GENERATE FIT PLOTS FOR OUTLIERS ====================
+    # Find parameter outliers (where scipy and mpfit params differ significantly)
+    param_outliers = []
+    for r in valid_results:
+        sp = r['scipy']['params']
+        mp = r['fmpfit']['params']
+        
+        # Check for significant differences
+        diff_I = abs(sp[0] - mp[0])
+        diff_v = abs(sp[1] - mp[1])
+        diff_w = abs(sp[2] - mp[2])
+        
+        # Thresholds: 1% for I, 0.01 pixels for v, 1% for w
+        is_outlier = False
+        if sp[0] > 0 and diff_I / sp[0] > 0.01:
+            is_outlier = True
+        if diff_v > 0.01:
+            is_outlier = True
+        if sp[2] > 0 and diff_w / sp[2] > 0.01:
+            is_outlier = True
+        
+        if is_outlier:
+            param_outliers.append(r)
+    
+    if param_outliers:
+        print(f"\n{'=' * 80}")
+        print(f"GENERATING FIT PLOTS FOR {len(param_outliers)} PARAMETER OUTLIERS")
+        print(f"{'=' * 80}")
+        for r in param_outliers:
+            plot_fit_comparison(r, output_dir)
+
     return results_list
 
 
