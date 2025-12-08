@@ -145,7 +145,8 @@ setup(
     name="ftools",
     # Version 5 introduces fmpfit
     # Version 5.1 introduces xerror_scaled for scipy curve_fit comparison
-    version="5.1.7",
+    # Version 5.2 introduces xerror_scipy (different handling of bounded params)
+    version="5.2.1",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",

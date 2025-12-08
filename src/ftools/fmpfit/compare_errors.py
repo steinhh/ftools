@@ -354,6 +354,68 @@ def plot_fit_comparison(result, output_dir=None):
     print(f'  Saved: {output_path}')
 
 
+def mpfit_is_better(result, chi2_threshold=0.5, param_threshold=0.1):
+    """Determine if MPFIT found a significantly better fit than scipy.
+    
+    Compares chi-squared values and parameter distances from truth to determine
+    if MPFIT's solution is meaningfully better than scipy's.
+    
+    Parameters
+    ----------
+    result : dict
+        Result dictionary containing scipy, fmpfit, and true_params
+    chi2_threshold : float
+        Minimum chi2 improvement (mpfit chi2 < scipy chi2 - threshold) to consider better
+    param_threshold : float
+        Minimum relative improvement in parameter distance from truth
+    
+    Returns
+    -------
+    bool
+        True if MPFIT found a significantly better solution
+    str
+        Reason string explaining why MPFIT is better (or empty if not)
+    """
+    sp = result['scipy']
+    mp = result['fmpfit']
+    true = result['true_params']
+    
+    # Compare reduced chi-squared
+    sp_rchi2 = sp['reduced_chisq']
+    mp_rchi2 = mp['reduced_chisq']
+    
+    # Chi2 improvement: MPFIT significantly lower
+    chi2_better = mp_rchi2 < sp_rchi2 - chi2_threshold
+    
+    # Parameter distance from truth
+    sp_params = sp['params']
+    mp_params = mp['params']
+    
+    # Compute weighted distance from truth (relative for I and w, absolute for v)
+    def param_distance(params):
+        d_I = abs(params[0] - true[0]) / true[0] if true[0] != 0 else abs(params[0] - true[0])
+        d_v = abs(params[1] - true[1])  # absolute for velocity
+        d_w = abs(params[2] - true[2]) / true[2] if true[2] != 0 else abs(params[2] - true[2])
+        return d_I + d_v + d_w
+    
+    sp_dist = param_distance(sp_params)
+    mp_dist = param_distance(mp_params)
+    
+    # MPFIT closer to truth by significant margin
+    params_better = mp_dist < sp_dist * (1 - param_threshold)
+    
+    reasons = []
+    if chi2_better:
+        reasons.append(f'chi2: {mp_rchi2:.2f} vs {sp_rchi2:.2f}')
+    if params_better:
+        reasons.append(f'dist: {mp_dist:.2f} vs {sp_dist:.2f}')
+    
+    is_better = chi2_better or params_better
+    reason = ', '.join(reasons) if reasons else ''
+    
+    return is_better, reason
+
+
 def estimate_sigma_from_data(x, y, max_idx, lower_bound=0.7):
     """Estimate sigma using second moment around the peak, with safe floor.
     
@@ -595,7 +657,10 @@ def run_comparison_n_times(n_runs, seed=41):
     
     # ==================== FILTER RUNS WITH ERROR RATIO OUTLIERS ====================
     # Only consider runs where mpfit_scipy/scipy ratio is >1.05 or <0.95
+    # But ignore cases where MPFIT found a significantly better fit
     outlier_runs = []
+    mpfit_better_runs = []
+    
     for r in valid_results:
         sp_err = r['scipy']['errors']
         mp_err_scipy = r['fmpfit']['errors_scipy']
@@ -612,11 +677,26 @@ def run_comparison_n_times(n_runs, seed=41):
         is_outlier = any(not np.isnan(rat) and (rat > 1.05 or rat < 0.95) for rat in ratios)
         if is_outlier:
             r['error_ratios'] = ratios
-            outlier_runs.append(r)
+            
+            # Check if MPFIT found a better solution - if so, ignore this outlier
+            is_better, reason = mpfit_is_better(r)
+            if is_better:
+                r['mpfit_better_reason'] = reason
+                mpfit_better_runs.append(r)
+            else:
+                outlier_runs.append(r)
     
     print(f"\n{'=' * 120}")
-    print(f"OUTLIER ANALYSIS: {len(outlier_runs)} runs with error ratio outside [0.99, 1.01]")
+    print(f"OUTLIER ANALYSIS: {len(outlier_runs)} runs with error ratio outside [0.95, 1.05]")
+    print(f"  (Ignored {len(mpfit_better_runs)} runs where MPFIT found a better fit)")
     print(f"{'=' * 120}")
+    
+    if mpfit_better_runs:
+        print(f"\nIgnored runs (MPFIT better):")
+        for r in mpfit_better_runs[:10]:  # Show first 10
+            print(f"  Run {r['run']:>4}: {r['mpfit_better_reason']}")
+        if len(mpfit_better_runs) > 10:
+            print(f"  ... and {len(mpfit_better_runs) - 10} more")
     
     if not outlier_runs:
         print("No outliers found! All error ratios are within [0.99, 1.01].")
