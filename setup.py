@@ -144,7 +144,8 @@ ext_modules = [
 setup(
     name="ftools",
     # Version 5 introduces fmpfit
-    version="5.0.28",
+    # Version 5.1 introduces xerror_scaled for scipy curve_fit comparison
+    version="5.1.29",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
