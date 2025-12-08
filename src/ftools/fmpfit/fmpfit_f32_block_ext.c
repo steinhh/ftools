@@ -17,6 +17,10 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
+/* Include scipy-style error computation (float32 version) */
+#define XERROR_SCIPY_FLOAT 1
+#include "xerror_scipy.c"
+
 /*
  * Core MPFIT function for a single spectrum (float32 version)
  */
@@ -305,104 +309,8 @@ static PyObject *py_fmpfit_f32_block(PyObject *self, PyObject *args)
 
     /* Compute xerror_scipy for this spectrum (full Hessian inverse) */
     float *xerror_scipy_s = out_xerror_scipy + s * npar;
-    {
-      float *jac = (float *)malloc(mpoints * npar * sizeof(float));
-      float *hess = (float *)malloc(npar * npar * sizeof(float));
-      float *hess_inv = (float *)malloc(npar * npar * sizeof(float));
-
-      if (jac && hess && hess_inv)
-      {
-        float I_val = best_params_s[0];
-        float v_val = best_params_s[1];
-        float w_val = best_params_s[2];
-
-        for (int k = 0; k < mpoints; k++)
-        {
-          float xk = x_s[k];
-          float ek = error_s[k];
-          float xmv = xk - v_val;
-          float g = I_val * expf(-(xmv * xmv) / (2 * w_val * w_val));
-          jac[k * npar + 0] = (g / I_val) / ek;
-          jac[k * npar + 1] = (g * xmv / (w_val * w_val)) / ek;
-          jac[k * npar + 2] = (g * xmv * xmv / (w_val * w_val * w_val)) / ek;
-        }
-
-        for (int i = 0; i < npar; i++)
-        {
-          for (int j = 0; j < npar; j++)
-          {
-            float sum = 0.0f;
-            for (int k = 0; k < mpoints; k++)
-              sum += jac[k * npar + i] * jac[k * npar + j];
-            hess[i * npar + j] = sum;
-          }
-        }
-
-        for (int i = 0; i < npar; i++)
-          for (int j = 0; j < npar; j++)
-            hess_inv[i * npar + j] = (i == j) ? 1.0f : 0.0f;
-
-        float *aug = (float *)malloc(npar * npar * sizeof(float));
-        if (aug)
-        {
-          memcpy(aug, hess, npar * npar * sizeof(float));
-          for (int col = 0; col < npar; col++)
-          {
-            int pivot = col;
-            float max_val = fabsf(aug[col * npar + col]);
-            for (int row = col + 1; row < npar; row++)
-              if (fabsf(aug[row * npar + col]) > max_val)
-              {
-                max_val = fabsf(aug[row * npar + col]);
-                pivot = row;
-              }
-            if (pivot != col)
-              for (int k = 0; k < npar; k++)
-              {
-                float tmp = aug[col * npar + k];
-                aug[col * npar + k] = aug[pivot * npar + k];
-                aug[pivot * npar + k] = tmp;
-                tmp = hess_inv[col * npar + k];
-                hess_inv[col * npar + k] = hess_inv[pivot * npar + k];
-                hess_inv[pivot * npar + k] = tmp;
-              }
-            float pivot_val = aug[col * npar + col];
-            if (fabsf(pivot_val) > 1e-7f)
-            {
-              for (int k = 0; k < npar; k++)
-              {
-                aug[col * npar + k] /= pivot_val;
-                hess_inv[col * npar + k] /= pivot_val;
-              }
-              for (int row = 0; row < npar; row++)
-                if (row != col)
-                {
-                  float factor = aug[row * npar + col];
-                  for (int k = 0; k < npar; k++)
-                  {
-                    aug[row * npar + k] -= factor * aug[col * npar + k];
-                    hess_inv[row * npar + k] -= factor * hess_inv[col * npar + k];
-                  }
-                }
-            }
-          }
-          free(aug);
-        }
-        for (int i = 0; i < npar; i++)
-        {
-          float var = hess_inv[i * npar + i];
-          xerror_scipy_s[i] = (var > 0) ? sqrtf(var) * scale_factor : 0.0f;
-        }
-      }
-      else
-      {
-        for (int i = 0; i < npar; i++)
-          xerror_scipy_s[i] = xerror_scaled_s[i];
-      }
-      free(jac);
-      free(hess);
-      free(hess_inv);
-    }
+    compute_xerror_scipy_f32(x_s, error_s, best_params_s, mpoints, npar,
+                             scale_factor, xerror_scipy_s, xerror_scaled_s);
 
     /* Set constant values */
     out_npar[s] = npar;

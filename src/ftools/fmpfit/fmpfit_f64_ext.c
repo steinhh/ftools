@@ -16,6 +16,9 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
+/* Include scipy-style error computation (float64 version) */
+#include "xerror_scipy.c"
+
 /*
  * Core MPFIT function - calls MPFIT library (float64 version)
  */
@@ -225,153 +228,9 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
       xerror_scaled[i] = xerror[i] * scale_factor;
     }
 
-    /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style)
-     * MPFIT's covar is computed from the reduced Jacobian (excluding bounded params).
-     * scipy computes covar from the full Jacobian. To match scipy, we need to
-     * recompute the full Hessian H = J^T W J and invert it.
-     * Here we use a simpler approach: compute Jacobian, form Hessian, invert.
-     */
-    {
-      /* Allocate workspace for Jacobian and Hessian */
-      double *jac = (double *)malloc(mpoints * npar * sizeof(double));
-      double *hess = (double *)malloc(npar * npar * sizeof(double));
-      double *hess_inv = (double *)malloc(npar * npar * sizeof(double));
-
-      if (jac && hess && hess_inv)
-      {
-        /* Compute Jacobian at best_params */
-        double I_val = best_params[0];
-        double v_val = best_params[1];
-        double w_val = best_params[2];
-
-        for (int k = 0; k < mpoints; k++)
-        {
-          double xk = x[k];
-          double ek = error[k];
-          double xmv = xk - v_val;
-          double g = I_val * exp(-(xmv * xmv) / (2 * w_val * w_val));
-
-          /* Jacobian: d(residual)/d(param) = (1/error) * d(model)/d(param) */
-          /* For weighted least squares: J_ij = (1/sigma_i) * df/dp_j */
-          jac[k * npar + 0] = (g / I_val) / ek;                               /* dg/dI */
-          jac[k * npar + 1] = (g * xmv / (w_val * w_val)) / ek;               /* dg/dv */
-          jac[k * npar + 2] = (g * xmv * xmv / (w_val * w_val * w_val)) / ek; /* dg/dw */
-        }
-
-        /* Compute Hessian H = J^T J (this is the normal equations matrix) */
-        for (int i = 0; i < npar; i++)
-        {
-          for (int j = 0; j < npar; j++)
-          {
-            double sum = 0.0;
-            for (int k = 0; k < mpoints; k++)
-            {
-              sum += jac[k * npar + i] * jac[k * npar + j];
-            }
-            hess[i * npar + j] = sum;
-          }
-        }
-
-        /* Invert Hessian using Gaussian elimination with partial pivoting */
-        /* First copy hess to hess_inv and make it identity */
-        for (int i = 0; i < npar; i++)
-        {
-          for (int j = 0; j < npar; j++)
-          {
-            hess_inv[i * npar + j] = (i == j) ? 1.0 : 0.0;
-          }
-        }
-
-        /* Gaussian elimination */
-        double *aug = (double *)malloc(npar * npar * sizeof(double));
-        if (aug)
-        {
-          memcpy(aug, hess, npar * npar * sizeof(double));
-
-          for (int col = 0; col < npar; col++)
-          {
-            /* Find pivot */
-            int pivot = col;
-            double max_val = fabs(aug[col * npar + col]);
-            for (int row = col + 1; row < npar; row++)
-            {
-              if (fabs(aug[row * npar + col]) > max_val)
-              {
-                max_val = fabs(aug[row * npar + col]);
-                pivot = row;
-              }
-            }
-
-            /* Swap rows if needed */
-            if (pivot != col)
-            {
-              for (int k = 0; k < npar; k++)
-              {
-                double tmp = aug[col * npar + k];
-                aug[col * npar + k] = aug[pivot * npar + k];
-                aug[pivot * npar + k] = tmp;
-
-                tmp = hess_inv[col * npar + k];
-                hess_inv[col * npar + k] = hess_inv[pivot * npar + k];
-                hess_inv[pivot * npar + k] = tmp;
-              }
-            }
-
-            /* Scale pivot row */
-            double pivot_val = aug[col * npar + col];
-            if (fabs(pivot_val) > 1e-15)
-            {
-              for (int k = 0; k < npar; k++)
-              {
-                aug[col * npar + k] /= pivot_val;
-                hess_inv[col * npar + k] /= pivot_val;
-              }
-
-              /* Eliminate column */
-              for (int row = 0; row < npar; row++)
-              {
-                if (row != col)
-                {
-                  double factor = aug[row * npar + col];
-                  for (int k = 0; k < npar; k++)
-                  {
-                    aug[row * npar + k] -= factor * aug[col * npar + k];
-                    hess_inv[row * npar + k] -= factor * hess_inv[col * npar + k];
-                  }
-                }
-              }
-            }
-          }
-          free(aug);
-        }
-
-        /* Extract errors from diagonal of hess_inv, scaled by sqrt(chi2/dof) */
-        for (int i = 0; i < npar; i++)
-        {
-          double var = hess_inv[i * npar + i];
-          if (var > 0)
-          {
-            xerror_scipy[i] = sqrt(var) * scale_factor;
-          }
-          else
-          {
-            xerror_scipy[i] = 0.0;
-          }
-        }
-      }
-      else
-      {
-        /* Fallback if allocation failed */
-        for (int i = 0; i < npar; i++)
-        {
-          xerror_scipy[i] = xerror_scaled[i];
-        }
-      }
-
-      free(jac);
-      free(hess);
-      free(hess_inv);
-    }
+    /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style) */
+    compute_xerror_scipy_f64(x, error, best_params, mpoints, npar,
+                             scale_factor, xerror_scipy, xerror_scaled);
     Py_END_ALLOW_THREADS
   }
 
