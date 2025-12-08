@@ -181,14 +181,16 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   double *xerror = (double *)malloc(npar * sizeof(double));
   double *covar = (double *)malloc(npar * npar * sizeof(double));
   double *xerror_scaled = (double *)malloc(npar * sizeof(double));
+  double *xerror_scipy = (double *)malloc(npar * sizeof(double));
 
-  if (!best_params || !resid || !xerror || !covar || !xerror_scaled)
+  if (!best_params || !resid || !xerror || !covar || !xerror_scaled || !xerror_scipy)
   {
     free(best_params);
     free(resid);
     free(xerror);
     free(covar);
     free(xerror_scaled);
+    free(xerror_scipy);
     Py_DECREF(x_contig);
     Py_DECREF(y_contig);
     Py_DECREF(error_contig);
@@ -222,6 +224,154 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
     {
       xerror_scaled[i] = xerror[i] * scale_factor;
     }
+
+    /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style)
+     * MPFIT's covar is computed from the reduced Jacobian (excluding bounded params).
+     * scipy computes covar from the full Jacobian. To match scipy, we need to
+     * recompute the full Hessian H = J^T W J and invert it.
+     * Here we use a simpler approach: compute Jacobian, form Hessian, invert.
+     */
+    {
+      /* Allocate workspace for Jacobian and Hessian */
+      double *jac = (double *)malloc(mpoints * npar * sizeof(double));
+      double *hess = (double *)malloc(npar * npar * sizeof(double));
+      double *hess_inv = (double *)malloc(npar * npar * sizeof(double));
+
+      if (jac && hess && hess_inv)
+      {
+        /* Compute Jacobian at best_params */
+        double I_val = best_params[0];
+        double v_val = best_params[1];
+        double w_val = best_params[2];
+
+        for (int k = 0; k < mpoints; k++)
+        {
+          double xk = x[k];
+          double ek = error[k];
+          double xmv = xk - v_val;
+          double g = I_val * exp(-(xmv * xmv) / (2 * w_val * w_val));
+
+          /* Jacobian: d(residual)/d(param) = (1/error) * d(model)/d(param) */
+          /* For weighted least squares: J_ij = (1/sigma_i) * df/dp_j */
+          jac[k * npar + 0] = (g / I_val) / ek;                               /* dg/dI */
+          jac[k * npar + 1] = (g * xmv / (w_val * w_val)) / ek;               /* dg/dv */
+          jac[k * npar + 2] = (g * xmv * xmv / (w_val * w_val * w_val)) / ek; /* dg/dw */
+        }
+
+        /* Compute Hessian H = J^T J (this is the normal equations matrix) */
+        for (int i = 0; i < npar; i++)
+        {
+          for (int j = 0; j < npar; j++)
+          {
+            double sum = 0.0;
+            for (int k = 0; k < mpoints; k++)
+            {
+              sum += jac[k * npar + i] * jac[k * npar + j];
+            }
+            hess[i * npar + j] = sum;
+          }
+        }
+
+        /* Invert Hessian using Gaussian elimination with partial pivoting */
+        /* First copy hess to hess_inv and make it identity */
+        for (int i = 0; i < npar; i++)
+        {
+          for (int j = 0; j < npar; j++)
+          {
+            hess_inv[i * npar + j] = (i == j) ? 1.0 : 0.0;
+          }
+        }
+
+        /* Gaussian elimination */
+        double *aug = (double *)malloc(npar * npar * sizeof(double));
+        if (aug)
+        {
+          memcpy(aug, hess, npar * npar * sizeof(double));
+
+          for (int col = 0; col < npar; col++)
+          {
+            /* Find pivot */
+            int pivot = col;
+            double max_val = fabs(aug[col * npar + col]);
+            for (int row = col + 1; row < npar; row++)
+            {
+              if (fabs(aug[row * npar + col]) > max_val)
+              {
+                max_val = fabs(aug[row * npar + col]);
+                pivot = row;
+              }
+            }
+
+            /* Swap rows if needed */
+            if (pivot != col)
+            {
+              for (int k = 0; k < npar; k++)
+              {
+                double tmp = aug[col * npar + k];
+                aug[col * npar + k] = aug[pivot * npar + k];
+                aug[pivot * npar + k] = tmp;
+
+                tmp = hess_inv[col * npar + k];
+                hess_inv[col * npar + k] = hess_inv[pivot * npar + k];
+                hess_inv[pivot * npar + k] = tmp;
+              }
+            }
+
+            /* Scale pivot row */
+            double pivot_val = aug[col * npar + col];
+            if (fabs(pivot_val) > 1e-15)
+            {
+              for (int k = 0; k < npar; k++)
+              {
+                aug[col * npar + k] /= pivot_val;
+                hess_inv[col * npar + k] /= pivot_val;
+              }
+
+              /* Eliminate column */
+              for (int row = 0; row < npar; row++)
+              {
+                if (row != col)
+                {
+                  double factor = aug[row * npar + col];
+                  for (int k = 0; k < npar; k++)
+                  {
+                    aug[row * npar + k] -= factor * aug[col * npar + k];
+                    hess_inv[row * npar + k] -= factor * hess_inv[col * npar + k];
+                  }
+                }
+              }
+            }
+          }
+          free(aug);
+        }
+
+        /* Extract errors from diagonal of hess_inv, scaled by sqrt(chi2/dof) */
+        for (int i = 0; i < npar; i++)
+        {
+          double var = hess_inv[i * npar + i];
+          if (var > 0)
+          {
+            xerror_scipy[i] = sqrt(var) * scale_factor;
+          }
+          else
+          {
+            xerror_scipy[i] = 0.0;
+          }
+        }
+      }
+      else
+      {
+        /* Fallback if allocation failed */
+        for (int i = 0; i < npar; i++)
+        {
+          xerror_scipy[i] = xerror_scaled[i];
+        }
+      }
+
+      free(jac);
+      free(hess);
+      free(hess_inv);
+    }
     Py_END_ALLOW_THREADS
   }
 
@@ -235,20 +385,23 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
   PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_DOUBLE);
   PyArrayObject *xerror_scaled_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
+  PyArrayObject *xerror_scipy_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_DOUBLE);
 
   if (!best_params_array || !resid_array || !xerror_array || !covar_array ||
-      !xerror_scaled_array)
+      !xerror_scaled_array || !xerror_scipy_array)
   {
     Py_XDECREF(best_params_array);
     Py_XDECREF(resid_array);
     Py_XDECREF(xerror_array);
     Py_XDECREF(covar_array);
     Py_XDECREF(xerror_scaled_array);
+    Py_XDECREF(xerror_scipy_array);
     free(best_params);
     free(resid);
     free(xerror);
     free(covar);
     free(xerror_scaled);
+    free(xerror_scipy);
     Py_DECREF(x_contig);
     Py_DECREF(y_contig);
     Py_DECREF(error_contig);
@@ -263,6 +416,7 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(double));
   memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(double));
   memcpy(PyArray_DATA(xerror_scaled_array), xerror_scaled, npar * sizeof(double));
+  memcpy(PyArray_DATA(xerror_scipy_array), xerror_scipy, npar * sizeof(double));
 
   /* Free temporary buffers */
   free(best_params);
@@ -270,6 +424,7 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   free(xerror);
   free(covar);
   free(xerror_scaled);
+  free(xerror_scipy);
 
   /* Release input arrays */
   Py_DECREF(x_contig);
@@ -308,6 +463,7 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   PyDict_SetItemString(result, "xerror", (PyObject *)xerror_array);
   PyDict_SetItemString(result, "covar", (PyObject *)covar_array);
   PyDict_SetItemString(result, "xerror_scaled", (PyObject *)xerror_scaled_array);
+  PyDict_SetItemString(result, "xerror_scipy", (PyObject *)xerror_scipy_array);
 
   /* Decrement reference counts (dict holds references) */
   Py_DECREF(best_params_array);
@@ -315,6 +471,7 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   Py_DECREF(xerror_array);
   Py_DECREF(covar_array);
   Py_DECREF(xerror_scaled_array);
+  Py_DECREF(xerror_scipy_array);
 
   return result;
 }
