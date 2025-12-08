@@ -1,7 +1,3 @@
-# ftools Copilot Instructions
-
-Include global-copilot-instructions.md as a reference.
-
 ## Project Overview
 
 `ftools` provides high-performance C-extension local image filters (`fmedian`, `fsigma`) for cosmic ray detection. The architecture separates 2D and 3D implementations into parallel modules that share a unified Python API.
@@ -202,3 +198,17 @@ This project uses `tcsh` shell. Use tcsh-compatible syntax:
 
 - Output redirection: `command >& file` not `command &> file`
 - Pipe stderr: `command |& filter` not `command 2>&1 | filter`
+
+## Developer-added instructions (do not modify or delete)
+
+When creating executable files, use file extension `.exe` to avoid confusion with source files.
+
+Use a terse style for the README files, try to avoid duplication of information.
+
+Use redirect to top-level file dev_null.txt instead of redirecting to /dev/null, since such redirects cannot be auto-approved by copilot.
+
+Warn me when I'm introducing new features that warrant an increment of the major version number.
+
+Warn me if I'm changing the public API in a way that is not backward compatible.
+
+Log all prompts, questions and queries verbatim into `chats/log.md`, using a header "\n\n\n-------PROMPT: ". Do not leave out any details. Then add a single-line summary of your response or actions, as a quote (i.e. line starting with "> "). When my prompts refer to previous prompts, make sure the log file contains enough context to understand the references. When my prompts refer to options you have given (as in "do 1 and 2"), add those options to the log file for context. Summarise your response/actions in a single line after the prompt. Always append the prompt and response summary to `chats/log.md`?even for purely informational questions. Never just print the log entry in the chat. Never modify what is already in the log file unless I explicitly ask you to do so.
