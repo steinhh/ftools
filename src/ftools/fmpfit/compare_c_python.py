@@ -176,7 +176,7 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
         results['fmpfit'] = {
             'params': result_mpfit.best_params,
             'errors': result_mpfit.xerror,
-            'errors_scaled': result_mpfit.xerror_scaled,
+            'errors_scipy': result_mpfit.xerror_scipy,
             'chisq': result_mpfit.bestnorm,
             'reduced_chisq': result_mpfit.bestnorm / (len(x) - len(p0)) if len(x) > len(p0) else np.nan,
             'niter': result_mpfit.niter,
@@ -190,7 +190,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
         results['fmpfit'] = {
             'params': np.array([np.nan] * len(p0)),
             'errors': np.array([np.nan] * len(p0)),
-            'errors_scaled': np.array([np.nan] * len(p0)),
             'chisq': np.nan,
             'reduced_chisq': np.nan,
             'covar': None,
@@ -638,14 +637,15 @@ def run_comparison_n_times(n_runs, seed=41):
     print("=" * 120)
     print("""
 Error estimation methods:
-  - scipy errors:    sqrt(diag(pcov)) with absolute_sigma=False (default)
-                     = scaled by sqrt(chi2/dof) so reduced_chi2 = 1
-  - mpfit xerror:    sqrt(diag(covar)) from MPFIT, unscaled (assumes input errors are correct)
-  - xerror_scaled:   xerror * sqrt(chi2/dof) - should match scipy errors
+Error estimation methods:
+    - scipy errors:    sqrt(diag(pcov)) with absolute_sigma=False (default)
+                        (scaled so reduced_chi2 = 1)
+    - mpfit xerror:    sqrt(diag(covar)) from MPFIT, unscaled (assumes input errors are correct)
+    - mpfit xerror_scipy: SciPy-compatible errors computed in MPFIT core (full-Hessian diagonal)
 """)
     
     # Table header for error comparison
-    print(f"\n{'':>4} || {'Scipy errors':^36} || {'MPFIT xerror_scaled':^36} || {'Ratio (scaled/scipy)':^20} ||")
+    print(f"\n{'':>4} || {'Scipy errors':^36} || {'MPFIT errors_scipy':^36} || {'Ratio (mpfit_scipy/scipy)':^20} ||")
     print(f"{'Run':>4} || {'err_I':>9} {'err_v':>9} {'err_w':>9} {'rchi2':>5} || {'err_I':>9} {'err_v':>9} {'err_w':>9} {'rchi2':>5} || {'I':>6} {'v':>6} {'w':>6} ||")
     print("-" * 124)
     
@@ -659,20 +659,23 @@ Error estimation methods:
         if scipy_ok and mpfit_ok:
             sp_err = r['scipy']['errors']
             sp_rchi2 = r['scipy']['reduced_chisq']
-            mp_err_scaled = r['fmpfit']['errors_scaled']
+            # Use SciPy-compatible errors exported by MPFIT core (xerror_scipy)
+            mp_err_scipy = r['fmpfit'].get('errors_scipy')
             mp_rchi2 = r['fmpfit']['reduced_chisq']
-            
-            # Compute ratios (scaled/scipy)
-            ratio_I = mp_err_scaled[0] / sp_err[0] if sp_err[0] > 0 else np.nan
-            ratio_v = mp_err_scaled[1] / sp_err[1] if sp_err[1] > 0 else np.nan
-            ratio_w = mp_err_scaled[2] / sp_err[2] if sp_err[2] > 0 else np.nan
+            if mp_err_scipy is None:
+                mp_err_scipy = np.array([np.nan, np.nan, np.nan])
+
+            # Compute ratios (mpfit_scipy/scipy)
+            ratio_I = mp_err_scipy[0] / sp_err[0] if sp_err[0] > 0 else np.nan
+            ratio_v = mp_err_scipy[1] / sp_err[1] if sp_err[1] > 0 else np.nan
+            ratio_w = mp_err_scipy[2] / sp_err[2] if sp_err[2] > 0 else np.nan
             
             ratios_I.append(ratio_I)
             ratios_v.append(ratio_v)
             ratios_w.append(ratio_w)
             
             scipy_str = f"{sp_err[0]:>9.4f} {sp_err[1]:>9.4f} {sp_err[2]:>9.4f} {sp_rchi2:>5.2f}"
-            mpfit_str = f"{mp_err_scaled[0]:>9.4f} {mp_err_scaled[1]:>9.4f} {mp_err_scaled[2]:>9.4f} {mp_rchi2:>5.2f}"
+            mpfit_str = f"{mp_err_scipy[0]:>9.4f} {mp_err_scipy[1]:>9.4f} {mp_err_scipy[2]:>9.4f} {mp_rchi2:>5.2f}"
             ratio_str = f"{ratio_I:>6.3f} {ratio_v:>6.3f} {ratio_w:>6.3f}"
         else:
             scipy_str = f"{'-':>9} {'-':>9} {'-':>9} {'-':>5}"
@@ -685,7 +688,7 @@ Error estimation methods:
     
     # Summary statistics
     if ratios_I:
-        print("\nRatio statistics (xerror_scaled / scipy_errors):")
+        print("\nRatio statistics (mpfit_scipy / scipy_errors):")
         print(f"  I:  mean={np.mean(ratios_I):.4f}, std={np.std(ratios_I):.4f}, min={np.min(ratios_I):.4f}, max={np.max(ratios_I):.4f}")
         print(f"  v:  mean={np.mean(ratios_v):.4f}, std={np.std(ratios_v):.4f}, min={np.min(ratios_v):.4f}, max={np.max(ratios_v):.4f}")
         print(f"  w:  mean={np.mean(ratios_w):.4f}, std={np.std(ratios_w):.4f}, min={np.min(ratios_w):.4f}, max={np.max(ratios_w):.4f}")

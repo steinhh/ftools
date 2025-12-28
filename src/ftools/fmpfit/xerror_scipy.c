@@ -55,9 +55,8 @@
  *   npar        - number of parameters (must be 3 for Gaussian)
  *   scale_factor - sqrt(chi2/dof) scaling factor
  *   xerror_scipy - output: scipy-style errors (npar)
- *   xerror_scaled - fallback values if allocation fails (npar)
- *
- * Returns: 0 on success, -1 on allocation failure (xerror_scipy = xerror_scaled)
+
+ * Returns: 0 on success, -1 on allocation failure
  */
 static int XS_FUNC_NAME(
     const XS_REAL *x,
@@ -66,8 +65,7 @@ static int XS_FUNC_NAME(
     int mpoints,
     int npar,
     XS_REAL scale_factor,
-    XS_REAL *xerror_scipy,
-    const XS_REAL *xerror_scaled)
+    XS_REAL *xerror_scipy)
 {
   int i, j, k, col, row, pivot;
   XS_REAL *jac = NULL;
@@ -86,11 +84,7 @@ static int XS_FUNC_NAME(
 
   if (!jac || !hess || !hess_inv)
   {
-    /* Fallback to xerror_scaled on allocation failure */
-    for (i = 0; i < npar; i++)
-    {
-      xerror_scipy[i] = xerror_scaled[i];
-    }
+    /* Allocation failed */
     ret = -1;
     goto cleanup;
   }
@@ -145,10 +139,6 @@ static int XS_FUNC_NAME(
   aug = (XS_REAL *)malloc(npar * npar * sizeof(XS_REAL));
   if (!aug)
   {
-    for (i = 0; i < npar; i++)
-    {
-      xerror_scipy[i] = xerror_scaled[i];
-    }
     ret = -1;
     goto cleanup;
   }

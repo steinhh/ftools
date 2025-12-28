@@ -70,6 +70,7 @@ result = fmpfit_pywrap(
     functkw={'x': x, 'y': y, 'error': np.ones_like(y) * 0.1}
 )
 print(f"Best-fit: {result.best_params}, ?²={result.bestnorm:.2f}")
+print(f"SciPy-style errors (full Hessian): {result.xerror_scipy}")
 ```
 
 Block fitting (multiple spectra in one call, GIL-free):

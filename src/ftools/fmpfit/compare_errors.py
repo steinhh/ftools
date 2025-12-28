@@ -176,7 +176,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
         results['fmpfit'] = {
             'params': result_mpfit.best_params,
             'errors': result_mpfit.xerror,
-            'errors_scaled': result_mpfit.xerror_scaled,
             'errors_scipy': result_mpfit.xerror_scipy,
             'chisq': result_mpfit.bestnorm,
             'reduced_chisq': result_mpfit.bestnorm / (len(x) - len(p0)) if len(x) > len(p0) else np.nan,
@@ -191,7 +190,6 @@ def compare_scipy_fmpfit(x, y, error, p0, bounds, pixel_spacing=None):
         results['fmpfit'] = {
             'params': np.array([np.nan] * len(p0)),
             'errors': np.array([np.nan] * len(p0)),
-            'errors_scaled': np.array([np.nan] * len(p0)),
             'errors_scipy': np.array([np.nan] * len(p0)),
             'chisq': np.nan,
             'reduced_chisq': np.nan,
@@ -814,7 +812,7 @@ def run_comparison_n_times(n_runs, seed=41):
         if covar is not None:
             print(f"  Covariance diagonal: [{covar[0,0]:.6f}, {covar[1,1]:.6f}, {covar[2,2]:.6f}]")
             print(f"  xerror (unscaled): {r['fmpfit']['errors']}")
-            print(f"  xerror_scaled:     {r['fmpfit']['errors_scaled']}")
+            print(f"  xerror_scipy:      {r['fmpfit'].get('errors_scipy', [np.nan, np.nan, np.nan])}")
             print(f"  scipy errors:      {r['scipy']['errors']}")
         print(f"  Error ratios: {r['error_ratios']}")
     

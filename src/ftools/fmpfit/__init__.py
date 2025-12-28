@@ -42,8 +42,7 @@ class MPFitResult:
         Final residuals
     xerror : ndarray
         Parameter uncertainties (1-sigma, unscaled - assumes input errors are correct)
-    xerror_scaled : ndarray
-        Parameter uncertainties scaled by sqrt(chi2/dof) to match curve_fit default behavior
+    
     xerror_scipy : ndarray
         Parameter uncertainties computed using full Hessian inverse (scipy-style)
         This is directly comparable to scipy.optimize.curve_fit errors, even when
@@ -54,7 +53,7 @@ class MPFitResult:
         Time spent in C extension (seconds)
     """
     def __init__(self, best_params, bestnorm, orignorm, niter, nfev, status,     # NOSONAR
-                 npar, nfree, npegged, nfunc, resid, xerror, xerror_scaled,      # NOSONAR
+                 npar, nfree, npegged, nfunc, resid, xerror,                    # NOSONAR
                  xerror_scipy, covar, c_time=0.0):                               # NOSONAR
         self.best_params = best_params
         self.bestnorm = bestnorm
@@ -68,7 +67,6 @@ class MPFitResult:
         self.nfunc = nfunc
         self.resid = resid
         self.xerror = xerror
-        self.xerror_scaled = xerror_scaled
         self.xerror_scipy = xerror_scipy
         self.covar = covar
         self.c_time = c_time
@@ -202,7 +200,6 @@ def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
         nfunc=result_dict['nfunc'],
         resid=result_dict['resid'],
         xerror=result_dict['xerror'],
-        xerror_scaled=result_dict['xerror_scaled'],
         xerror_scipy=result_dict['xerror_scipy'],
         covar=result_dict['covar'],
         c_time=c_time
@@ -317,7 +314,6 @@ def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOS
         nfunc=result_dict['nfunc'],
         resid=result_dict['resid'],
         xerror=result_dict['xerror'],
-        xerror_scaled=result_dict['xerror_scaled'],
         xerror_scipy=result_dict['xerror_scipy'],
         covar=result_dict['covar'],
         c_time=c_time
@@ -373,7 +369,6 @@ def fmpfit_f64_block_pywrap(deviate_type, x, y, error, p0, bounds, #NOSONAR
         - 'nfunc': shape (n_spectra,) - number of data points
         - 'resid': shape (n_spectra, n_data_points) - final residuals
         - 'xerror': shape (n_spectra, n_params) - parameter uncertainties (unscaled)
-        - 'xerror_scaled': shape (n_spectra, n_params) - uncertainties scaled by sqrt(chi2/dof)
         - 'xerror_scipy': shape (n_spectra, n_params) - uncertainties using full Hessian (scipy-style)
         - 'covar': shape (n_spectra, n_params, n_params) - covariance matrices
     
