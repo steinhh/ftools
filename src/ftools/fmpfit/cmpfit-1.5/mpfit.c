@@ -1,18 +1,18 @@
-/* 
+/*
  * MINPACK-1 Least Squares Fitting Library
  *
  * Original public domain version by B. Garbow, K. Hillstrom, J. More'
  *   (Argonne National Laboratory, MINPACK project, March 1980)
  * See the file DISCLAIMER for copyright information.
- * 
+ *
  * Tranlation to C Language by S. Moshier (moshier.net)
- * 
+ *
  * Enhancements and packaging by C. Markwardt
  *   (comparable to IDL fitting routine MPFIT
  *    see http://cow.physics.wisc.edu/~craigm/idl/idl.html)
  */
 
-/* Main mpfit library routines (mp_real precision) 
+/* Main mpfit library routines (mp_real precision)
    $Id$
  */
 
@@ -24,263 +24,269 @@
 
 /* Forward declarations of functions in this module */
 static int mp_fdjac2(mp_func funct,
-	      int m, int n, int *ifree, int npar, mp_real *x, mp_real *fvec,
-	      mp_real *fjac, int ldfjac, mp_real epsfcn,
-	      mp_real *wa, void *priv, int *nfev,
-	      mp_real *step, mp_real *dstep, int *dside,
-	      int *qulimited, mp_real *ulimit,
-	      int *ddebug, mp_real *ddrtol, mp_real *ddatol,
-	      mp_real *wa2, mp_real **dvecptr);
-static void mp_qrfac(int m, int n, mp_real *a, int lda, 
-	      int pivot, int *ipvt, int lipvt,
-	      mp_real *rdiag, mp_real *acnorm, mp_real *wa);
+                     int m, int n, int *ifree, int npar, mp_real *x, mp_real *fvec,
+                     mp_real *fjac, int ldfjac, mp_real epsfcn,
+                     mp_real *wa, void *priv, int *nfev,
+                     mp_real *step, mp_real *dstep, int *dside,
+                     int *qulimited, mp_real *ulimit,
+                     int *ddebug, mp_real *ddrtol, mp_real *ddatol,
+                     mp_real *wa2, mp_real **dvecptr);
+static void mp_qrfac(int m, int n, mp_real *a, int lda,
+                     int pivot, int *ipvt, int lipvt,
+                     mp_real *rdiag, mp_real *acnorm, mp_real *wa);
 static void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
-	       mp_real *qtb, mp_real *x, mp_real *sdiag, mp_real *wa);
+                      mp_real *qtb, mp_real *x, mp_real *sdiag, mp_real *wa);
 static void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
-	      mp_real *qtb, mp_real delta, mp_real *par, mp_real *x,
-	      mp_real *sdiag, mp_real *wa1, mp_real *wa2);
+                     mp_real *qtb, mp_real delta, mp_real *par, mp_real *x,
+                     mp_real *sdiag, mp_real *wa1, mp_real *wa2);
 static mp_real mp_enorm(int n, mp_real *x);
 static mp_real mp_dmax1(mp_real a, mp_real b);
 static mp_real mp_dmin1(mp_real a, mp_real b);
 static int mp_min0(int a, int b);
 static int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa);
+static void mp_xerror_scipy(mp_func funct, int m, int npar, mp_real *xall,
+                            mp_real *fvec, mp_real bestnorm, void *priv,
+                            mp_real *xerror_scipy);
 
 /* Macro to call user function */
-#define mp_call(funct, m, n, x, fvec, dvec, priv) (*(funct))(m,n,x,fvec,dvec,priv)
+#define mp_call(funct, m, n, x, fvec, dvec, priv) (*(funct))(m, n, x, fvec, dvec, priv)
 
 /* Macro to safely allocate memory */
-#define mp_malloc(dest,type,size) \
-  dest = (type *) malloc( sizeof(type)*size ); \
-  if (dest == 0) { \
-    info = MP_ERR_MEMORY; \
-    goto CLEANUP; \
-  } else { \
-    int _k; \
-    for (_k=0; _k<(size); _k++) dest[_k] = 0; \
-  } 
+#define mp_malloc(dest, type, size)           \
+  dest = (type *)malloc(sizeof(type) * size); \
+  if (dest == 0)                              \
+  {                                           \
+    info = MP_ERR_MEMORY;                     \
+    goto CLEANUP;                             \
+  }                                           \
+  else                                        \
+  {                                           \
+    int _k;                                   \
+    for (_k = 0; _k < (size); _k++)           \
+      dest[_k] = 0;                           \
+  }
 
 /*
-*     **********
-*
-*     subroutine mpfit
-*
-*     the purpose of mpfit is to minimize the sum of the squares of
-*     m nonlinear functions in n variables by a modification of
-*     the levenberg-marquardt algorithm. the user must provide a
-*     subroutine which calculates the functions. the jacobian is
-*     then calculated by a finite-difference approximation.
-*
-*     mp_funct funct - function to be minimized
-*     int m          - number of data points
-*     int npar       - number of fit parameters
-*     mp_real *xall   - array of n initial parameter values
-*                      upon return, contains adjusted parameter values
-*     mp_par *pars   - array of npar structures specifying constraints;
-*                      or 0 (null pointer) for unconstrained fitting
-*                      [ see README and mpfit.h for definition & use of mp_par]
-*     mp_config *config - pointer to structure which specifies the
-*                      configuration of mpfit(); or 0 (null pointer)
-*                      if the default configuration is to be used.
-*                      See README and mpfit.h for definition and use
-*                      of config.
-*     void *private  - any private user data which is to be passed directly
-*                      to funct without modification by mpfit().
-*     mp_result *result - pointer to structure, which upon return, contains
-*                      the results of the fit.  The user should zero this
-*                      structure.  If any of the array values are to be 
-*                      returned, the user should allocate storage for them
-*                      and assign the corresponding pointer in *result.
-*                      Upon return, *result will be updated, and
-*                      any of the non-null arrays will be filled.
-*
-*
-* FORTRAN DOCUMENTATION BELOW
-*
-*
-*     the subroutine statement is
-*
-*	subroutine lmdif(fcn,m,n,x,fvec,ftol,xtol,gtol,maxfev,epsfcn,
-*			 diag,mode,factor,nprint,info,nfev,fjac,
-*			 ldfjac,ipvt,qtf,wa1,wa2,wa3,wa4)
-*
-*     where
-*
-*	fcn is the name of the user-supplied subroutine which
-*	  calculates the functions. fcn must be declared
-*	  in an external statement in the user calling
-*	  program, and should be written as follows.
-*
-*	  subroutine fcn(m,n,x,fvec,iflag)
-*	  integer m,n,iflag
-*	  mp_real precision x(n),fvec(m)
-*	  ----------
-*	  calculate the functions at x and
-*	  return this vector in fvec.
-*	  ----------
-*	  return
-*	  end
-*
-*	  the value of iflag should not be changed by fcn unless
-*	  the user wants to terminate execution of lmdif.
-*	  in this case set iflag to a negative integer.
-*
-*	m is a positive integer input variable set to the number
-*	  of functions.
-*
-*	n is a positive integer input variable set to the number
-*	  of variables. n must not exceed m.
-*
-*	x is an array of length n. on input x must contain
-*	  an initial estimate of the solution vector. on output x
-*	  contains the final estimate of the solution vector.
-*
-*	fvec is an output array of length m which contains
-*	  the functions evaluated at the output x.
-*
-*	ftol is a nonnegative input variable. termination
-*	  occurs when both the actual and predicted relative
-*	  reductions in the sum of squares are at most ftol.
-*	  therefore, ftol measures the relative error desired
-*	  in the sum of squares.
-*
-*	xtol is a nonnegative input variable. termination
-*	  occurs when the relative error between two consecutive
-*	  iterates is at most xtol. therefore, xtol measures the
-*	  relative error desired in the approximate solution.
-*
-*	gtol is a nonnegative input variable. termination
-*	  occurs when the cosine of the angle between fvec and
-*	  any column of the jacobian is at most gtol in absolute
-*	  value. therefore, gtol measures the orthogonality
-*	  desired between the function vector and the columns
-*	  of the jacobian.
-*
-*	maxfev is a positive integer input variable. termination
-*	  occurs when the number of calls to fcn is at least
-*	  maxfev by the end of an iteration.
-*
-*	epsfcn is an input variable used in determining a suitable
-*	  step length for the forward-difference approximation. this
-*	  approximation assumes that the relative errors in the
-*	  functions are of the order of epsfcn. if epsfcn is less
-*	  than the machine precision, it is assumed that the relative
-*	  errors in the functions are of the order of the machine
-*	  precision.
-*
-*	diag is an array of length n. if mode = 1 (see
-*	  below), diag is internally set. if mode = 2, diag
-*	  must contain positive entries that serve as
-*	  multiplicative scale factors for the variables.
-*
-*	mode is an integer input variable. if mode = 1, the
-*	  variables will be scaled internally. if mode = 2,
-*	  the scaling is specified by the input diag. other
-*	  values of mode are equivalent to mode = 1.
-*
-*	factor is a positive input variable used in determining the
-*	  initial step bound. this bound is set to the product of
-*	  factor and the euclidean norm of diag*x if nonzero, or else
-*	  to factor itself. in most cases factor should lie in the
-*	  interval (.1,100.). 100. is a generally recommended value.
-*
-*	nprint is an integer input variable that enables controlled
-*	  printing of iterates if it is positive. in this case,
-*	  fcn is called with iflag = 0 at the beginning of the first
-*	  iteration and every nprint iterations thereafter and
-*	  immediately prior to return, with x and fvec available
-*	  for printing. if nprint is not positive, no special calls
-*	  of fcn with iflag = 0 are made.
-*
-*	info is an integer output variable. if the user has
-*	  terminated execution, info is set to the (negative)
-*	  value of iflag. see description of fcn. otherwise,
-*	  info is set as follows.
-*
-*	  info = 0  improper input parameters.
-*
-*	  info = 1  both actual and predicted relative reductions
-*		    in the sum of squares are at most ftol.
-*
-*	  info = 2  relative error between two consecutive iterates
-*		    is at most xtol.
-*
-*	  info = 3  conditions for info = 1 and info = 2 both hold.
-*
-*	  info = 4  the cosine of the angle between fvec and any
-*		    column of the jacobian is at most gtol in
-*		    absolute value.
-*
-*	  info = 5  number of calls to fcn has reached or
-*		    exceeded maxfev.
-*
-*	  info = 6  ftol is too small. no further reduction in
-*		    the sum of squares is possible.
-*
-*	  info = 7  xtol is too small. no further improvement in
-*		    the approximate solution x is possible.
-*
-*	  info = 8  gtol is too small. fvec is orthogonal to the
-*		    columns of the jacobian to machine precision.
-*
-*	nfev is an integer output variable set to the number of
-*	  calls to fcn.
-*
-*	fjac is an output m by n array. the upper n by n submatrix
-*	  of fjac contains an upper triangular matrix r with
-*	  diagonal elements of nonincreasing magnitude such that
-*
-*		 t     t	   t
-*		p *(jac *jac)*p = r *r,
-*
-*	  where p is a permutation matrix and jac is the final
-*	  calculated jacobian. column j of p is column ipvt(j)
-*	  (see below) of the identity matrix. the lower trapezoidal
-*	  part of fjac contains information generated during
-*	  the computation of r.
-*
-*	ldfjac is a positive integer input variable not less than m
-*	  which specifies the leading dimension of the array fjac.
-*
-*	ipvt is an integer output array of length n. ipvt
-*	  defines a permutation matrix p such that jac*p = q*r,
-*	  where jac is the final calculated jacobian, q is
-*	  orthogonal (not stored), and r is upper triangular
-*	  with diagonal elements of nonincreasing magnitude.
-*	  column j of p is column ipvt(j) of the identity matrix.
-*
-*	qtf is an output array of length n which contains
-*	  the first n elements of the vector (q transpose)*fvec.
-*
-*	wa1, wa2, and wa3 are work arrays of length n.
-*
-*	wa4 is a work array of length m.
-*
-*     subprograms called
-*
-*	user-supplied ...... fcn
-*
-*	minpack-supplied ... dpmpar,enorm,fdjac2,lmpar,qrfac
-*
-*	fortran-supplied ... dabs,dmax1,dmin1,dsqrt,mod
-*
-*     argonne national laboratory. minpack project. march 1980.
-*     burton s. garbow, kenneth e. hillstrom, jorge j. more
-*
-* ********** */
-
+ *     **********
+ *
+ *     subroutine mpfit
+ *
+ *     the purpose of mpfit is to minimize the sum of the squares of
+ *     m nonlinear functions in n variables by a modification of
+ *     the levenberg-marquardt algorithm. the user must provide a
+ *     subroutine which calculates the functions. the jacobian is
+ *     then calculated by a finite-difference approximation.
+ *
+ *     mp_funct funct - function to be minimized
+ *     int m          - number of data points
+ *     int npar       - number of fit parameters
+ *     mp_real *xall   - array of n initial parameter values
+ *                      upon return, contains adjusted parameter values
+ *     mp_par *pars   - array of npar structures specifying constraints;
+ *                      or 0 (null pointer) for unconstrained fitting
+ *                      [ see README and mpfit.h for definition & use of mp_par]
+ *     mp_config *config - pointer to structure which specifies the
+ *                      configuration of mpfit(); or 0 (null pointer)
+ *                      if the default configuration is to be used.
+ *                      See README and mpfit.h for definition and use
+ *                      of config.
+ *     void *private  - any private user data which is to be passed directly
+ *                      to funct without modification by mpfit().
+ *     mp_result *result - pointer to structure, which upon return, contains
+ *                      the results of the fit.  The user should zero this
+ *                      structure.  If any of the array values are to be
+ *                      returned, the user should allocate storage for them
+ *                      and assign the corresponding pointer in *result.
+ *                      Upon return, *result will be updated, and
+ *                      any of the non-null arrays will be filled.
+ *
+ *
+ * FORTRAN DOCUMENTATION BELOW
+ *
+ *
+ *     the subroutine statement is
+ *
+ *	subroutine lmdif(fcn,m,n,x,fvec,ftol,xtol,gtol,maxfev,epsfcn,
+ *			 diag,mode,factor,nprint,info,nfev,fjac,
+ *			 ldfjac,ipvt,qtf,wa1,wa2,wa3,wa4)
+ *
+ *     where
+ *
+ *	fcn is the name of the user-supplied subroutine which
+ *	  calculates the functions. fcn must be declared
+ *	  in an external statement in the user calling
+ *	  program, and should be written as follows.
+ *
+ *	  subroutine fcn(m,n,x,fvec,iflag)
+ *	  integer m,n,iflag
+ *	  mp_real precision x(n),fvec(m)
+ *	  ----------
+ *	  calculate the functions at x and
+ *	  return this vector in fvec.
+ *	  ----------
+ *	  return
+ *	  end
+ *
+ *	  the value of iflag should not be changed by fcn unless
+ *	  the user wants to terminate execution of lmdif.
+ *	  in this case set iflag to a negative integer.
+ *
+ *	m is a positive integer input variable set to the number
+ *	  of functions.
+ *
+ *	n is a positive integer input variable set to the number
+ *	  of variables. n must not exceed m.
+ *
+ *	x is an array of length n. on input x must contain
+ *	  an initial estimate of the solution vector. on output x
+ *	  contains the final estimate of the solution vector.
+ *
+ *	fvec is an output array of length m which contains
+ *	  the functions evaluated at the output x.
+ *
+ *	ftol is a nonnegative input variable. termination
+ *	  occurs when both the actual and predicted relative
+ *	  reductions in the sum of squares are at most ftol.
+ *	  therefore, ftol measures the relative error desired
+ *	  in the sum of squares.
+ *
+ *	xtol is a nonnegative input variable. termination
+ *	  occurs when the relative error between two consecutive
+ *	  iterates is at most xtol. therefore, xtol measures the
+ *	  relative error desired in the approximate solution.
+ *
+ *	gtol is a nonnegative input variable. termination
+ *	  occurs when the cosine of the angle between fvec and
+ *	  any column of the jacobian is at most gtol in absolute
+ *	  value. therefore, gtol measures the orthogonality
+ *	  desired between the function vector and the columns
+ *	  of the jacobian.
+ *
+ *	maxfev is a positive integer input variable. termination
+ *	  occurs when the number of calls to fcn is at least
+ *	  maxfev by the end of an iteration.
+ *
+ *	epsfcn is an input variable used in determining a suitable
+ *	  step length for the forward-difference approximation. this
+ *	  approximation assumes that the relative errors in the
+ *	  functions are of the order of epsfcn. if epsfcn is less
+ *	  than the machine precision, it is assumed that the relative
+ *	  errors in the functions are of the order of the machine
+ *	  precision.
+ *
+ *	diag is an array of length n. if mode = 1 (see
+ *	  below), diag is internally set. if mode = 2, diag
+ *	  must contain positive entries that serve as
+ *	  multiplicative scale factors for the variables.
+ *
+ *	mode is an integer input variable. if mode = 1, the
+ *	  variables will be scaled internally. if mode = 2,
+ *	  the scaling is specified by the input diag. other
+ *	  values of mode are equivalent to mode = 1.
+ *
+ *	factor is a positive input variable used in determining the
+ *	  initial step bound. this bound is set to the product of
+ *	  factor and the euclidean norm of diag*x if nonzero, or else
+ *	  to factor itself. in most cases factor should lie in the
+ *	  interval (.1,100.). 100. is a generally recommended value.
+ *
+ *	nprint is an integer input variable that enables controlled
+ *	  printing of iterates if it is positive. in this case,
+ *	  fcn is called with iflag = 0 at the beginning of the first
+ *	  iteration and every nprint iterations thereafter and
+ *	  immediately prior to return, with x and fvec available
+ *	  for printing. if nprint is not positive, no special calls
+ *	  of fcn with iflag = 0 are made.
+ *
+ *	info is an integer output variable. if the user has
+ *	  terminated execution, info is set to the (negative)
+ *	  value of iflag. see description of fcn. otherwise,
+ *	  info is set as follows.
+ *
+ *	  info = 0  improper input parameters.
+ *
+ *	  info = 1  both actual and predicted relative reductions
+ *		    in the sum of squares are at most ftol.
+ *
+ *	  info = 2  relative error between two consecutive iterates
+ *		    is at most xtol.
+ *
+ *	  info = 3  conditions for info = 1 and info = 2 both hold.
+ *
+ *	  info = 4  the cosine of the angle between fvec and any
+ *		    column of the jacobian is at most gtol in
+ *		    absolute value.
+ *
+ *	  info = 5  number of calls to fcn has reached or
+ *		    exceeded maxfev.
+ *
+ *	  info = 6  ftol is too small. no further reduction in
+ *		    the sum of squares is possible.
+ *
+ *	  info = 7  xtol is too small. no further improvement in
+ *		    the approximate solution x is possible.
+ *
+ *	  info = 8  gtol is too small. fvec is orthogonal to the
+ *		    columns of the jacobian to machine precision.
+ *
+ *	nfev is an integer output variable set to the number of
+ *	  calls to fcn.
+ *
+ *	fjac is an output m by n array. the upper n by n submatrix
+ *	  of fjac contains an upper triangular matrix r with
+ *	  diagonal elements of nonincreasing magnitude such that
+ *
+ *		 t     t	   t
+ *		p *(jac *jac)*p = r *r,
+ *
+ *	  where p is a permutation matrix and jac is the final
+ *	  calculated jacobian. column j of p is column ipvt(j)
+ *	  (see below) of the identity matrix. the lower trapezoidal
+ *	  part of fjac contains information generated during
+ *	  the computation of r.
+ *
+ *	ldfjac is a positive integer input variable not less than m
+ *	  which specifies the leading dimension of the array fjac.
+ *
+ *	ipvt is an integer output array of length n. ipvt
+ *	  defines a permutation matrix p such that jac*p = q*r,
+ *	  where jac is the final calculated jacobian, q is
+ *	  orthogonal (not stored), and r is upper triangular
+ *	  with diagonal elements of nonincreasing magnitude.
+ *	  column j of p is column ipvt(j) of the identity matrix.
+ *
+ *	qtf is an output array of length n which contains
+ *	  the first n elements of the vector (q transpose)*fvec.
+ *
+ *	wa1, wa2, and wa3 are work arrays of length n.
+ *
+ *	wa4 is a work array of length m.
+ *
+ *     subprograms called
+ *
+ *	user-supplied ...... fcn
+ *
+ *	minpack-supplied ... dpmpar,enorm,fdjac2,lmpar,qrfac
+ *
+ *	fortran-supplied ... dabs,dmax1,dmin1,dsqrt,mod
+ *
+ *     argonne national laboratory. minpack project. march 1980.
+ *     burton s. garbow, kenneth e. hillstrom, jorge j. more
+ *
+ * ********** */
 
 int mpfit(mp_func funct, int m, int npar,
-	  mp_real *xall, mp_par *pars, mp_config *config, void *private_data, 
-	  mp_result *result)
+          mp_real *xall, mp_par *pars, mp_config *config, void *private_data,
+          mp_result *result)
 {
   mp_config conf;
   int i, j, info, iflag, nfree, npegged, iter;
   int qanylim = 0;
 
-  int ij,jj,l;
-  mp_real actred,delta,dirder,fnorm,fnorm1,gnorm, orignorm;
-  mp_real par,pnorm,prered,ratio;
-  mp_real sum,temp,temp1,temp2,temp3,xnorm, alpha;
+  int ij, jj, l;
+  mp_real actred, delta, dirder, fnorm, fnorm1, gnorm, orignorm;
+  mp_real par, pnorm, prered, ratio;
+  mp_real sum, temp, temp1, temp2, temp3, xnorm, alpha;
   static mp_real one = 1.0;
   static mp_real p1 = 0.1;
   static mp_real p5 = 0.5;
@@ -315,20 +321,32 @@ int mpfit(mp_func funct, int m, int npar,
   conf.maxfev = 0;
   conf.covtol = 1e-14;
   conf.nofinitecheck = 0;
-  
-  if (config) {
+
+  if (config)
+  {
     /* Transfer any user-specified configurations */
-    if (config->ftol > 0) conf.ftol = config->ftol;
-    if (config->xtol > 0) conf.xtol = config->xtol;
-    if (config->gtol > 0) conf.gtol = config->gtol;
-    if (config->stepfactor > 0) conf.stepfactor = config->stepfactor;
-    if (config->nprint >= 0) conf.nprint = config->nprint;
-    if (config->epsfcn > 0) conf.epsfcn = config->epsfcn;
-    if (config->maxiter > 0) conf.maxiter = config->maxiter;
-    if (config->maxiter == MP_NO_ITER) conf.maxiter = 0;
-    if (config->douserscale != 0) conf.douserscale = config->douserscale;
-    if (config->covtol > 0) conf.covtol = config->covtol;
-    if (config->nofinitecheck > 0) conf.nofinitecheck = config->nofinitecheck;
+    if (config->ftol > 0)
+      conf.ftol = config->ftol;
+    if (config->xtol > 0)
+      conf.xtol = config->xtol;
+    if (config->gtol > 0)
+      conf.gtol = config->gtol;
+    if (config->stepfactor > 0)
+      conf.stepfactor = config->stepfactor;
+    if (config->nprint >= 0)
+      conf.nprint = config->nprint;
+    if (config->epsfcn > 0)
+      conf.epsfcn = config->epsfcn;
+    if (config->maxiter > 0)
+      conf.maxiter = config->maxiter;
+    if (config->maxiter == MP_NO_ITER)
+      conf.maxiter = 0;
+    if (config->douserscale != 0)
+      conf.douserscale = config->douserscale;
+    if (config->covtol > 0)
+      conf.covtol = config->covtol;
+    if (config->nofinitecheck > 0)
+      conf.nofinitecheck = config->nofinitecheck;
     conf.maxfev = config->maxfev;
   }
 
@@ -338,15 +356,18 @@ int mpfit(mp_func funct, int m, int npar,
   npegged = 0;
 
   /* Basic error checking */
-  if (funct == 0) {
+  if (funct == 0)
+  {
     return MP_ERR_FUNC;
   }
 
-  if ((m <= 0) || (xall == 0)) {
+  if ((m <= 0) || (xall == 0))
+  {
     return MP_ERR_NPOINTS;
   }
-  
-  if (npar <= 0) {
+
+  if (npar <= 0)
+  {
     return MP_ERR_NFREE;
   }
 
@@ -357,51 +378,62 @@ int mpfit(mp_func funct, int m, int npar,
 
   /* FIXED parameters? */
   mp_malloc(pfixed, int, npar);
-  if (pars) for (i=0; i<npar; i++) {
-    pfixed[i] = (pars[i].fixed)?1:0;
-  }
+  if (pars)
+    for (i = 0; i < npar; i++)
+    {
+      pfixed[i] = (pars[i].fixed) ? 1 : 0;
+    }
 
   /* Finite differencing step, absolute and relative, and sidedness of deriv */
-  mp_malloc(step,  mp_real, npar);
+  mp_malloc(step, mp_real, npar);
   mp_malloc(dstep, mp_real, npar);
   mp_malloc(mpside, int, npar);
   mp_malloc(ddebug, int, npar);
   mp_malloc(ddrtol, mp_real, npar);
   mp_malloc(ddatol, mp_real, npar);
-  if (pars) for (i=0; i<npar; i++) {
-    step[i] = pars[i].step;
-    dstep[i] = pars[i].relstep;
-    mpside[i] = pars[i].side;
-    ddebug[i] = pars[i].deriv_debug;
-    ddrtol[i] = pars[i].deriv_reltol;
-    ddatol[i] = pars[i].deriv_abstol;
-  }
-    
+  if (pars)
+    for (i = 0; i < npar; i++)
+    {
+      step[i] = pars[i].step;
+      dstep[i] = pars[i].relstep;
+      mpside[i] = pars[i].side;
+      ddebug[i] = pars[i].deriv_debug;
+      ddrtol[i] = pars[i].deriv_reltol;
+      ddatol[i] = pars[i].deriv_abstol;
+    }
+
   /* Finish up the free parameters */
   nfree = 0;
   mp_malloc(ifree, int, npar);
-  for (i=0, j=0; i<npar; i++) {
-    if (pfixed[i] == 0) {
+  for (i = 0, j = 0; i < npar; i++)
+  {
+    if (pfixed[i] == 0)
+    {
       nfree++;
       ifree[j++] = i;
     }
   }
-  if (nfree == 0) {
+  if (nfree == 0)
+  {
     info = MP_ERR_NFREE;
     goto CLEANUP;
   }
-  
-  if (pars) {
-    for (i=0; i<npar; i++) {
-      if ( (pars[i].limited[0] && (xall[i] < pars[i].limits[0])) ||
-	   (pars[i].limited[1] && (xall[i] > pars[i].limits[1])) ) {
-	info = MP_ERR_INITBOUNDS;
-	goto CLEANUP;
+
+  if (pars)
+  {
+    for (i = 0; i < npar; i++)
+    {
+      if ((pars[i].limited[0] && (xall[i] < pars[i].limits[0])) ||
+          (pars[i].limited[1] && (xall[i] > pars[i].limits[1])))
+      {
+        info = MP_ERR_INITBOUNDS;
+        goto CLEANUP;
       }
-      if ( (pars[i].fixed == 0) && pars[i].limited[0] && pars[i].limited[1] &&
-	   (pars[i].limits[0] >= pars[i].limits[1])) {
-	info = MP_ERR_BOUNDS;
-	goto CLEANUP;
+      if ((pars[i].fixed == 0) && pars[i].limited[0] && pars[i].limited[1] &&
+          (pars[i].limits[0] >= pars[i].limits[1]))
+      {
+        info = MP_ERR_BOUNDS;
+        goto CLEANUP;
       }
     }
 
@@ -410,25 +442,29 @@ int mpfit(mp_func funct, int m, int npar,
     mp_malloc(ulim, mp_real, nfree);
     mp_malloc(llim, mp_real, nfree);
 
-    for (i=0; i<nfree; i++) {
+    for (i = 0; i < nfree; i++)
+    {
       qllim[i] = pars[ifree[i]].limited[0];
       qulim[i] = pars[ifree[i]].limited[1];
-      llim[i]  = pars[ifree[i]].limits[0];
-      ulim[i]  = pars[ifree[i]].limits[1];
-      if (qllim[i] || qulim[i]) qanylim = 1;
+      llim[i] = pars[ifree[i]].limits[0];
+      ulim[i] = pars[ifree[i]].limits[1];
+      if (qllim[i] || qulim[i])
+        qanylim = 1;
     }
   }
 
   /* Sanity checking on input configuration */
   if ((npar <= 0) || (conf.ftol <= 0) || (conf.xtol <= 0) ||
       (conf.gtol <= 0) || (conf.maxiter < 0) ||
-      (conf.stepfactor <= 0)) {
+      (conf.stepfactor <= 0))
+  {
     info = MP_ERR_PARAM;
     goto CLEANUP;
   }
 
   /* Ensure there are some degrees of freedom */
-  if (m < nfree) {
+  if (m < nfree)
+  {
     info = MP_ERR_DOF;
     goto CLEANUP;
   }
@@ -438,7 +474,7 @@ int mpfit(mp_func funct, int m, int npar,
   mp_malloc(qtf, mp_real, nfree);
   mp_malloc(x, mp_real, nfree);
   mp_malloc(xnew, mp_real, npar);
-  mp_malloc(fjac, mp_real, m*nfree);
+  mp_malloc(fjac, mp_real, m * nfree);
   ldfjac = m;
   mp_malloc(diag, mp_real, npar);
   mp_malloc(wa1, mp_real, npar);
@@ -451,20 +487,23 @@ int mpfit(mp_func funct, int m, int npar,
   /* Evaluate user function with initial parameter values */
   iflag = mp_call(funct, m, npar, xall, fvec, 0, private_data);
   nfev += 1;
-  if (iflag < 0) {
+  if (iflag < 0)
+  {
     goto CLEANUP;
   }
 
   fnorm = mp_enorm(m, fvec);
-  orignorm = fnorm*fnorm;
+  orignorm = fnorm * fnorm;
 
   /* Make a new copy */
-  for (i=0; i<npar; i++) {
+  for (i = 0; i < npar; i++)
+  {
     xnew[i] = xall[i];
   }
 
   /* Transfer free parameters to 'x' */
-  for (i=0; i<nfree; i++) {
+  for (i = 0; i < nfree; i++)
+  {
     x[i] = xall[ifree[i]];
   }
 
@@ -472,71 +511,86 @@ int mpfit(mp_func funct, int m, int npar,
 
   par = 0.0;
   iter = 1;
-  for (i=0; i<nfree; i++) {
+  for (i = 0; i < nfree; i++)
+  {
     qtf[i] = 0;
   }
 
   /* Beginning of the outer loop */
- OUTER_LOOP:
-  for (i=0; i<nfree; i++) {
+OUTER_LOOP:
+  for (i = 0; i < nfree; i++)
+  {
     xnew[ifree[i]] = x[i];
   }
-  
+
   /* XXX call iterproc */
 
   /* Calculate the jacobian matrix */
   iflag = mp_fdjac2(funct, m, nfree, ifree, npar, xnew, fvec, fjac, ldfjac,
-		    conf.epsfcn, wa4, private_data, &nfev,
-		    step, dstep, mpside, qulim, ulim,
-		    ddebug, ddrtol, ddatol, wa2, dvecptr);
-  if (iflag < 0) {
+                    conf.epsfcn, wa4, private_data, &nfev,
+                    step, dstep, mpside, qulim, ulim,
+                    ddebug, ddrtol, ddatol, wa2, dvecptr);
+  if (iflag < 0)
+  {
     goto CLEANUP;
   }
 
   /* Determine if any of the parameters are pegged at the limits */
-  if (qanylim) {
-    for (j=0; j<nfree; j++) {
+  if (qanylim)
+  {
+    for (j = 0; j < nfree; j++)
+    {
       int lpegged = (qllim[j] && (x[j] == llim[j]));
       int upegged = (qulim[j] && (x[j] == ulim[j]));
       sum = 0;
 
       /* If the parameter is pegged at a limit, compute the gradient
-	 direction */
-      if (lpegged || upegged) {
-	ij = j*ldfjac;
-	for (i=0; i<m; i++, ij++) {
-	  sum += fvec[i] * fjac[ij];
-	}
+   direction */
+      if (lpegged || upegged)
+      {
+        ij = j * ldfjac;
+        for (i = 0; i < m; i++, ij++)
+        {
+          sum += fvec[i] * fjac[ij];
+        }
       }
       /* If pegged at lower limit and gradient is toward negative then
-	 reset gradient to zero */
-      if (lpegged && (sum > 0)) {
-	ij = j*ldfjac;
-	for (i=0; i<m; i++, ij++) fjac[ij] = 0;
+   reset gradient to zero */
+      if (lpegged && (sum > 0))
+      {
+        ij = j * ldfjac;
+        for (i = 0; i < m; i++, ij++)
+          fjac[ij] = 0;
       }
       /* If pegged at upper limit and gradient is toward positive then
-	 reset gradient to zero */
-      if (upegged && (sum < 0)) {
-	ij = j*ldfjac;
-	for (i=0; i<m; i++, ij++) fjac[ij] = 0;
+   reset gradient to zero */
+      if (upegged && (sum < 0))
+      {
+        ij = j * ldfjac;
+        for (i = 0; i < m; i++, ij++)
+          fjac[ij] = 0;
       }
     }
-  } 
+  }
 
   /* Compute the QR factorization of the jacobian */
-  mp_qrfac(m,nfree,fjac,ldfjac,1,ipvt,nfree,wa1,wa2,wa3);
+  mp_qrfac(m, nfree, fjac, ldfjac, 1, ipvt, nfree, wa1, wa2, wa3);
 
   /*
    *	 on the first iteration and if mode is 1, scale according
    *	 to the norms of the columns of the initial jacobian.
    */
-  if (iter == 1) {
-    if (conf.douserscale == 0) {
-      for (j=0; j<nfree; j++) {
-	diag[ifree[j]] = wa2[j];
-	if (wa2[j] == zero ) {
-	  diag[ifree[j]] = one;
-	}
+  if (iter == 1)
+  {
+    if (conf.douserscale == 0)
+    {
+      for (j = 0; j < nfree; j++)
+      {
+        diag[ifree[j]] = wa2[j];
+        if (wa2[j] == zero)
+        {
+          diag[ifree[j]] = one;
+        }
       }
     }
 
@@ -544,85 +598,99 @@ int mpfit(mp_func funct, int m, int npar,
      *	 on the first iteration, calculate the norm of the scaled x
      *	 and initialize the step bound delta.
      */
-    for (j=0; j<nfree; j++ ) {
+    for (j = 0; j < nfree; j++)
+    {
       wa3[j] = diag[ifree[j]] * x[j];
     }
-    
+
     xnorm = mp_enorm(nfree, wa3);
-    delta = conf.stepfactor*xnorm;
-    if (delta == zero) delta = conf.stepfactor;
+    delta = conf.stepfactor * xnorm;
+    if (delta == zero)
+      delta = conf.stepfactor;
   }
 
   /*
    *	 form (q transpose)*fvec and store the first n components in
    *	 qtf.
    */
-  for (i=0; i<m; i++ ) {
+  for (i = 0; i < m; i++)
+  {
     wa4[i] = fvec[i];
   }
 
   jj = 0;
-  for (j=0; j<nfree; j++ ) {
+  for (j = 0; j < nfree; j++)
+  {
     temp3 = fjac[jj];
-    if (temp3 != zero) {
+    if (temp3 != zero)
+    {
       sum = zero;
       ij = jj;
-      for (i=j; i<m; i++ ) {
-	sum += fjac[ij] * wa4[i];
-	ij += 1;	/* fjac[i+m*j] */
+      for (i = j; i < m; i++)
+      {
+        sum += fjac[ij] * wa4[i];
+        ij += 1; /* fjac[i+m*j] */
       }
       temp = -sum / temp3;
       ij = jj;
-      for (i=j; i<m; i++ ) {
-	wa4[i] += fjac[ij] * temp;
-	ij += 1;	/* fjac[i+m*j] */
+      for (i = j; i < m; i++)
+      {
+        wa4[i] += fjac[ij] * temp;
+        ij += 1; /* fjac[i+m*j] */
       }
     }
     fjac[jj] = wa1[j];
-    jj += m+1;	/* fjac[j+m*j] */
+    jj += m + 1; /* fjac[j+m*j] */
     qtf[j] = wa4[j];
   }
 
   /* ( From this point on, only the square matrix, consisting of the
      triangle of R, is needed.) */
 
-  
-  if (conf.nofinitecheck) {
+  if (conf.nofinitecheck)
+  {
     /* Check for overflow.  This should be a cheap test here since FJAC
        has been reduced to a (small) square matrix, and the test is
        O(N^2). */
     int off = 0, nonfinite = 0;
 
-    for (j=0; j<nfree; j++) {
-      for (i=0; i<nfree; i++) {
-	if (mpfinite(fjac[off+i]) == 0) nonfinite = 1;
+    for (j = 0; j < nfree; j++)
+    {
+      for (i = 0; i < nfree; i++)
+      {
+        if (mpfinite(fjac[off + i]) == 0)
+          nonfinite = 1;
       }
       off += ldfjac;
     }
 
-    if (nonfinite) {
+    if (nonfinite)
+    {
       info = MP_ERR_NAN;
       goto CLEANUP;
     }
   }
 
-
   /*
    *	 compute the norm of the scaled gradient.
    */
   gnorm = zero;
-  if (fnorm != zero) {
+  if (fnorm != zero)
+  {
     jj = 0;
-    for (j=0; j<nfree; j++ ) {
+    for (j = 0; j < nfree; j++)
+    {
       l = ipvt[j];
-      if (wa2[l] != zero) {
-	sum = zero;
-	ij = jj;
-	for (i=0; i<=j; i++ ) {
-	  sum += fjac[ij]*(qtf[i]/fnorm);
-	  ij += 1; /* fjac[i+m*j] */
-	}
-	gnorm = mp_dmax1(gnorm,mp_fabs(sum/wa2[l]));
+      if (wa2[l] != zero)
+      {
+        sum = zero;
+        ij = jj;
+        for (i = 0; i <= j; i++)
+        {
+          sum += fjac[ij] * (qtf[i] / fnorm);
+          ij += 1; /* fjac[i+m*j] */
+        }
+        gnorm = mp_dmax1(gnorm, mp_fabs(sum / wa2[l]));
       }
       jj += m;
     }
@@ -631,9 +699,12 @@ int mpfit(mp_func funct, int m, int npar,
   /*
    *	 test for convergence of the gradient norm.
    */
-  if (gnorm <= conf.gtol) info = MP_OK_DIR;
-  if (info != 0) goto L300;
-  if (conf.maxiter == 0) {
+  if (gnorm <= conf.gtol)
+    info = MP_OK_DIR;
+  if (info != 0)
+    goto L300;
+  if (conf.maxiter == 0)
+  {
     info = MP_MAXITER;
     goto L300;
   }
@@ -641,57 +712,69 @@ int mpfit(mp_func funct, int m, int npar,
   /*
    *	 rescale if necessary.
    */
-  if (conf.douserscale == 0) {
-    for (j=0; j<nfree; j++ ) {
-      diag[ifree[j]] = mp_dmax1(diag[ifree[j]],wa2[j]);
+  if (conf.douserscale == 0)
+  {
+    for (j = 0; j < nfree; j++)
+    {
+      diag[ifree[j]] = mp_dmax1(diag[ifree[j]], wa2[j]);
     }
   }
 
   /*
    *	 beginning of the inner loop.
    */
- L200:
+L200:
   /*
    *	    determine the levenberg-marquardt parameter.
    */
-  mp_lmpar(nfree,fjac,ldfjac,ipvt,ifree,diag,qtf,delta,&par,wa1,wa2,wa3,wa4);
+  mp_lmpar(nfree, fjac, ldfjac, ipvt, ifree, diag, qtf, delta, &par, wa1, wa2, wa3, wa4);
   /*
    *	    store the direction p and x + p. calculate the norm of p.
    */
-  for (j=0; j<nfree; j++ ) {
+  for (j = 0; j < nfree; j++)
+  {
     wa1[j] = -wa1[j];
   }
 
   alpha = 1.0;
-  if (qanylim == 0) {
+  if (qanylim == 0)
+  {
     /* No parameter limits, so just move to new position WA2 */
-    for (j=0; j<nfree; j++ ) {
+    for (j = 0; j < nfree; j++)
+    {
       wa2[j] = x[j] + wa1[j];
     }
-
-  } else {
-    /* Respect the limits.  If a step were to go out of bounds, then 
+  }
+  else
+  {
+    /* Respect the limits.  If a step were to go out of bounds, then
      * we should take a step in the same direction but shorter distance.
      * The step should take us right to the limit in that case.
      */
-    for (j=0; j<nfree; j++) {
+    for (j = 0; j < nfree; j++)
+    {
       int lpegged = (qllim[j] && (x[j] <= llim[j]));
       int upegged = (qulim[j] && (x[j] >= ulim[j]));
       int dwa1 = mp_fabs(wa1[j]) > MP_MACHEP0;
-      
-      if (lpegged && (wa1[j] < 0)) wa1[j] = 0;
-      if (upegged && (wa1[j] > 0)) wa1[j] = 0;
 
-      if (dwa1 && qllim[j] && ((x[j] + wa1[j]) < llim[j])) {
-	alpha = mp_dmin1(alpha, (llim[j]-x[j])/wa1[j]);
+      if (lpegged && (wa1[j] < 0))
+        wa1[j] = 0;
+      if (upegged && (wa1[j] > 0))
+        wa1[j] = 0;
+
+      if (dwa1 && qllim[j] && ((x[j] + wa1[j]) < llim[j]))
+      {
+        alpha = mp_dmin1(alpha, (llim[j] - x[j]) / wa1[j]);
       }
-      if (dwa1 && qulim[j] && ((x[j] + wa1[j]) > ulim[j])) {
-	alpha = mp_dmin1(alpha, (ulim[j]-x[j])/wa1[j]);
+      if (dwa1 && qulim[j] && ((x[j] + wa1[j]) > ulim[j]))
+      {
+        alpha = mp_dmin1(alpha, (ulim[j] - x[j]) / wa1[j]);
       }
     }
-    
+
     /* Scale the resulting vector, advance to the next position */
-    for (j=0; j<nfree; j++) {
+    for (j = 0; j < nfree; j++)
+    {
       mp_real sgnu, sgnl;
       mp_real ulim1, llim1;
 
@@ -703,51 +786,57 @@ int mpfit(mp_func funct, int m, int npar,
        */
       sgnu = (ulim[j] >= 0) ? (+1) : (-1);
       sgnl = (llim[j] >= 0) ? (+1) : (-1);
-      ulim1 = ulim[j]*(1-sgnu*MP_MACHEP0) - ((ulim[j] == 0)?(MP_MACHEP0):0);
-      llim1 = llim[j]*(1+sgnl*MP_MACHEP0) + ((llim[j] == 0)?(MP_MACHEP0):0);
+      ulim1 = ulim[j] * (1 - sgnu * MP_MACHEP0) - ((ulim[j] == 0) ? (MP_MACHEP0) : 0);
+      llim1 = llim[j] * (1 + sgnl * MP_MACHEP0) + ((llim[j] == 0) ? (MP_MACHEP0) : 0);
 
-      if (qulim[j] && (wa2[j] >= ulim1)) {
-	wa2[j] = ulim[j];
+      if (qulim[j] && (wa2[j] >= ulim1))
+      {
+        wa2[j] = ulim[j];
       }
-      if (qllim[j] && (wa2[j] <= llim1)) {
-	wa2[j] = llim[j];
+      if (qllim[j] && (wa2[j] <= llim1))
+      {
+        wa2[j] = llim[j];
       }
     }
-
   }
 
-  for (j=0; j<nfree; j++ ) {
-    wa3[j] = diag[ifree[j]]*wa1[j];
+  for (j = 0; j < nfree; j++)
+  {
+    wa3[j] = diag[ifree[j]] * wa1[j];
   }
 
-  pnorm = mp_enorm(nfree,wa3);
-  
+  pnorm = mp_enorm(nfree, wa3);
+
   /*
    *	    on the first iteration, adjust the initial step bound.
    */
-  if (iter == 1) {
-    delta = mp_dmin1(delta,pnorm);
+  if (iter == 1)
+  {
+    delta = mp_dmin1(delta, pnorm);
   }
 
   /*
    *	    evaluate the function at x + p and calculate its norm.
    */
-  for (i=0; i<nfree; i++) {
+  for (i = 0; i < nfree; i++)
+  {
     xnew[ifree[i]] = wa2[i];
   }
 
   iflag = mp_call(funct, m, npar, xnew, wa4, 0, private_data);
   nfev += 1;
-  if (iflag < 0) goto L300;
+  if (iflag < 0)
+    goto L300;
 
-  fnorm1 = mp_enorm(m,wa4);
+  fnorm1 = mp_enorm(m, wa4);
 
   /*
    *	    compute the scaled actual reduction.
    */
   actred = -one;
-  if ((p1*fnorm1) < fnorm) {
-    temp = fnorm1/fnorm;
+  if ((p1 * fnorm1) < fnorm)
+  {
+    temp = fnorm1 / fnorm;
     actred = one - temp * temp;
   }
 
@@ -756,13 +845,15 @@ int mpfit(mp_func funct, int m, int npar,
    *	    the scaled directional derivative.
    */
   jj = 0;
-  for (j=0; j<nfree; j++ ) {
+  for (j = 0; j < nfree; j++)
+  {
     wa3[j] = zero;
     l = ipvt[j];
     temp = wa1[l];
     ij = jj;
-    for (i=0; i<=j; i++ ) {
-      wa3[i] += fjac[ij]*temp;
+    for (i = 0; i <= j; i++)
+    {
+      wa3[i] += fjac[ij] * temp;
       ij += 1; /* fjac[i+m*j] */
     }
     jj += m;
@@ -772,564 +863,679 @@ int mpfit(mp_func funct, int m, int npar,
    * taken
    */
 
-  temp1 = mp_enorm(nfree,wa3)*alpha/fnorm;
-  temp2 = (mp_sqrt(alpha*par)*pnorm)/fnorm;
-  prered = temp1*temp1 + (temp2*temp2)/p5;
-  dirder = -(temp1*temp1 + temp2*temp2);
+  temp1 = mp_enorm(nfree, wa3) * alpha / fnorm;
+  temp2 = (mp_sqrt(alpha * par) * pnorm) / fnorm;
+  prered = temp1 * temp1 + (temp2 * temp2) / p5;
+  dirder = -(temp1 * temp1 + temp2 * temp2);
 
   /*
    *	    compute the ratio of the actual to the predicted
    *	    reduction.
    */
   ratio = zero;
-  if (prered != zero) {
-    ratio = actred/prered;
+  if (prered != zero)
+  {
+    ratio = actred / prered;
   }
 
   /*
    *	    update the step bound.
    */
-  
-  if (ratio <= p25) {
-    if (actred >= zero) {
-      temp = p5; 
-    } else {
-      temp = p5*dirder/(dirder + p5*actred);
+
+  if (ratio <= p25)
+  {
+    if (actred >= zero)
+    {
+      temp = p5;
     }
-    if (((p1*fnorm1) >= fnorm)
-	|| (temp < p1) ) {
+    else
+    {
+      temp = p5 * dirder / (dirder + p5 * actred);
+    }
+    if (((p1 * fnorm1) >= fnorm) || (temp < p1))
+    {
       temp = p1;
     }
-    delta = temp*mp_dmin1(delta,pnorm/p1);
-    par = par/temp;
-  } else {
-    if ((par == zero) || (ratio >= p75) ) {
-      delta = pnorm/p5;
-      par = p5*par;
+    delta = temp * mp_dmin1(delta, pnorm / p1);
+    par = par / temp;
+  }
+  else
+  {
+    if ((par == zero) || (ratio >= p75))
+    {
+      delta = pnorm / p5;
+      par = p5 * par;
     }
   }
 
   /*
    *	    test for successful iteration.
    */
-  if (ratio >= p0001) {
-    
+  if (ratio >= p0001)
+  {
+
     /*
      *	    successful iteration. update x, fvec, and their norms.
      */
-    for (j=0; j<nfree; j++ ) {
+    for (j = 0; j < nfree; j++)
+    {
       x[j] = wa2[j];
-      wa2[j] = diag[ifree[j]]*x[j];
+      wa2[j] = diag[ifree[j]] * x[j];
     }
-    for (i=0; i<m; i++ ) {
+    for (i = 0; i < m; i++)
+    {
       fvec[i] = wa4[i];
     }
-    xnorm = mp_enorm(nfree,wa2);
+    xnorm = mp_enorm(nfree, wa2);
     fnorm = fnorm1;
     iter += 1;
   }
-  
+
   /*
    *	    tests for convergence.
    */
-  if ((mp_fabs(actred) <= conf.ftol) && (prered <= conf.ftol) && 
-      (p5*ratio <= one) ) {
+  if ((mp_fabs(actred) <= conf.ftol) && (prered <= conf.ftol) &&
+      (p5 * ratio <= one))
+  {
     info = MP_OK_CHI;
   }
-  if (delta <= conf.xtol*xnorm) {
+  if (delta <= conf.xtol * xnorm)
+  {
     info = MP_OK_PAR;
   }
-  if ((mp_fabs(actred) <= conf.ftol) && (prered <= conf.ftol) && (p5*ratio <= one)
-      && ( info == 2) ) {
+  if ((mp_fabs(actred) <= conf.ftol) && (prered <= conf.ftol) && (p5 * ratio <= one) && (info == 2))
+  {
     info = MP_OK_BOTH;
   }
-  if (info != 0) {
+  if (info != 0)
+  {
     goto L300;
   }
-  
+
   /*
    *	    tests for termination and stringent tolerances.
    */
-  if ((conf.maxfev > 0) && (nfev >= conf.maxfev)) {
+  if ((conf.maxfev > 0) && (nfev >= conf.maxfev))
+  {
     /* Too many function evaluations */
     info = MP_MAXITER;
   }
-  if (iter >= conf.maxiter) {
+  if (iter >= conf.maxiter)
+  {
     /* Too many iterations */
     info = MP_MAXITER;
   }
-  if ((mp_fabs(actred) <= MP_MACHEP0) && (prered <= MP_MACHEP0) && (p5*ratio <= one) ) {
+  if ((mp_fabs(actred) <= MP_MACHEP0) && (prered <= MP_MACHEP0) && (p5 * ratio <= one))
+  {
     info = MP_FTOL;
   }
-  if (delta <= MP_MACHEP0*xnorm) {
+  if (delta <= MP_MACHEP0 * xnorm)
+  {
     info = MP_XTOL;
   }
-  if (gnorm <= MP_MACHEP0) {
+  if (gnorm <= MP_MACHEP0)
+  {
     info = MP_GTOL;
   }
-  if (info != 0) {
+  if (info != 0)
+  {
     goto L300;
   }
-  
+
   /*
    *	    end of the inner loop. repeat if iteration unsuccessful.
    */
-  if (ratio < p0001) goto L200;
+  if (ratio < p0001)
+    goto L200;
   /*
    *	 end of the outer loop.
    */
   goto OUTER_LOOP;
 
- L300:
+L300:
   /*
    *     termination, either normal or user imposed.
    */
-  if (iflag < 0) {
+  if (iflag < 0)
+  {
     info = iflag;
   }
   iflag = 0;
 
-  for (i=0; i<nfree; i++) {
+  for (i = 0; i < nfree; i++)
+  {
     xall[ifree[i]] = x[i];
   }
-  
-  if ((conf.nprint > 0) && (info > 0)) {
+
+  if ((conf.nprint > 0) && (info > 0))
+  {
     iflag = mp_call(funct, m, npar, xall, fvec, 0, private_data);
     nfev += 1;
   }
 
   /* Compute number of pegged parameters */
   npegged = 0;
-  if (pars) for (i=0; i<npar; i++) {
-    if ((pars[i].limited[0] && (pars[i].limits[0] == xall[i])) ||
-	(pars[i].limited[1] && (pars[i].limits[1] == xall[i]))) {
-      npegged ++;
+  if (pars)
+    for (i = 0; i < npar; i++)
+    {
+      if ((pars[i].limited[0] && (pars[i].limits[0] == xall[i])) ||
+          (pars[i].limited[1] && (pars[i].limits[1] == xall[i])))
+      {
+        npegged++;
+      }
     }
-  }
 
   /* Compute and return the covariance matrix and/or parameter errors */
-  if (result && (result->covar || result->xerror)) {
+  if (result && (result->covar || result->xerror))
+  {
     mp_covar(nfree, fjac, ldfjac, ipvt, conf.covtol, wa2);
-    
-    if (result->covar) {
+
+    if (result->covar)
+    {
       /* Zero the destination covariance array */
-      for (j=0; j<(npar*npar); j++) result->covar[j] = 0;
-      
+      for (j = 0; j < (npar * npar); j++)
+        result->covar[j] = 0;
+
       /* Transfer the covariance array */
-      for (j=0; j<nfree; j++) {
-	for (i=0; i<nfree; i++) {
-	  result->covar[ifree[j]*npar+ifree[i]] = fjac[j*ldfjac+i];
-	}
+      for (j = 0; j < nfree; j++)
+      {
+        for (i = 0; i < nfree; i++)
+        {
+          result->covar[ifree[j] * npar + ifree[i]] = fjac[j * ldfjac + i];
+        }
       }
     }
 
-    if (result->xerror) {
-      for (j=0; j<npar; j++) result->xerror[j] = 0;
+    if (result->xerror)
+    {
+      for (j = 0; j < npar; j++)
+        result->xerror[j] = 0;
 
-      for (j=0; j<nfree; j++) {
-	mp_real cc = fjac[j*ldfjac+j];
-	if (cc > 0) result->xerror[ifree[j]] = mp_sqrt(cc);
+      for (j = 0; j < nfree; j++)
+      {
+        mp_real cc = fjac[j * ldfjac + j];
+        if (cc > 0)
+          result->xerror[ifree[j]] = mp_sqrt(cc);
       }
-    }
-  }      
-
-  if (result) {
-    strcpy(result->version, MPFIT_VERSION);
-    result->bestnorm = mp_dmax1(fnorm,fnorm1);
-    result->bestnorm *= result->bestnorm;
-    result->orignorm = orignorm;
-    result->status   = info;
-    result->niter    = iter;
-    result->nfev     = nfev;
-    result->npar     = npar;
-    result->nfree    = nfree;
-    result->npegged  = npegged;
-    result->nfunc    = m;
-    
-    /* Copy residuals if requested */
-    if (result->resid) {
-      for (j=0; j<m; j++) result->resid[j] = fvec[j];
     }
   }
 
+  /* Compute scipy-style errors from full Hessian inverse (all parameters) */
+  if (result && result->xerror_scipy)
+  {
+    mp_real final_bestnorm = mp_dmax1(fnorm, fnorm1);
+    final_bestnorm *= final_bestnorm;
+    mp_xerror_scipy(funct, m, npar, xall, fvec, final_bestnorm, private_data,
+                    result->xerror_scipy);
+  }
 
- CLEANUP:
-  if (fvec) free(fvec);
-  if (qtf)  free(qtf);
-  if (x)    free(x);
-  if (xnew) free(xnew);
-  if (fjac) free(fjac);
-  if (diag) free(diag);
-  if (wa1)  free(wa1);
-  if (wa2)  free(wa2);
-  if (wa3)  free(wa3);
-  if (wa4)  free(wa4);
-  if (ipvt) free(ipvt);
-  if (pfixed) free(pfixed);
-  if (step) free(step);
-  if (dstep) free(dstep);
-  if (mpside) free(mpside);
-  if (ddebug) free(ddebug);
-  if (ddrtol) free(ddrtol);
-  if (ddatol) free(ddatol);
-  if (ifree) free(ifree);
-  if (qllim) free(qllim);
-  if (qulim) free(qulim);
-  if (llim)  free(llim);
-  if (ulim)  free(ulim);
-  if (dvecptr) free(dvecptr);
+  if (result)
+  {
+    strcpy(result->version, MPFIT_VERSION);
+    result->bestnorm = mp_dmax1(fnorm, fnorm1);
+    result->bestnorm *= result->bestnorm;
+    result->orignorm = orignorm;
+    result->status = info;
+    result->niter = iter;
+    result->nfev = nfev;
+    result->npar = npar;
+    result->nfree = nfree;
+    result->npegged = npegged;
+    result->nfunc = m;
+
+    /* Copy residuals if requested */
+    if (result->resid)
+    {
+      for (j = 0; j < m; j++)
+        result->resid[j] = fvec[j];
+    }
+  }
+
+CLEANUP:
+  if (fvec)
+    free(fvec);
+  if (qtf)
+    free(qtf);
+  if (x)
+    free(x);
+  if (xnew)
+    free(xnew);
+  if (fjac)
+    free(fjac);
+  if (diag)
+    free(diag);
+  if (wa1)
+    free(wa1);
+  if (wa2)
+    free(wa2);
+  if (wa3)
+    free(wa3);
+  if (wa4)
+    free(wa4);
+  if (ipvt)
+    free(ipvt);
+  if (pfixed)
+    free(pfixed);
+  if (step)
+    free(step);
+  if (dstep)
+    free(dstep);
+  if (mpside)
+    free(mpside);
+  if (ddebug)
+    free(ddebug);
+  if (ddrtol)
+    free(ddrtol);
+  if (ddatol)
+    free(ddatol);
+  if (ifree)
+    free(ifree);
+  if (qllim)
+    free(qllim);
+  if (qulim)
+    free(qulim);
+  if (llim)
+    free(llim);
+  if (ulim)
+    free(ulim);
+  if (dvecptr)
+    free(dvecptr);
 
   return info;
 }
 
-
 /************************fdjac2.c*************************/
 
-static 
-int mp_fdjac2(mp_func funct,
-	      int m, int n, int *ifree, int npar, mp_real *x, mp_real *fvec,
-	      mp_real *fjac, int ldfjac, mp_real epsfcn,
-	      mp_real *wa, void *priv, int *nfev,
-	      mp_real *step, mp_real *dstep, int *dside,
-	      int *qulimited, mp_real *ulimit,
-	      int *ddebug, mp_real *ddrtol, mp_real *ddatol,
-	      mp_real *wa2, mp_real **dvec)
+static int mp_fdjac2(mp_func funct,
+                     int m, int n, int *ifree, int npar, mp_real *x, mp_real *fvec,
+                     mp_real *fjac, int ldfjac, mp_real epsfcn,
+                     mp_real *wa, void *priv, int *nfev,
+                     mp_real *step, mp_real *dstep, int *dside,
+                     int *qulimited, mp_real *ulimit,
+                     int *ddebug, mp_real *ddrtol, mp_real *ddatol,
+                     mp_real *wa2, mp_real **dvec)
 {
-/*
-*     **********
-*
-*     subroutine fdjac2
-*
-*     this subroutine computes a forward-difference approximation
-*     to the m by n jacobian matrix associated with a specified
-*     problem of m functions in n variables.
-*
-*     the subroutine statement is
-*
-*	subroutine fdjac2(fcn,m,n,x,fvec,fjac,ldfjac,iflag,epsfcn,wa)
-*
-*     where
-*
-*	fcn is the name of the user-supplied subroutine which
-*	  calculates the functions. fcn must be declared
-*	  in an external statement in the user calling
-*	  program, and should be written as follows.
-*
-*	  subroutine fcn(m,n,x,fvec,iflag)
-*	  integer m,n,iflag
-*	  mp_real precision x(n),fvec(m)
-*	  ----------
-*	  calculate the functions at x and
-*	  return this vector in fvec.
-*	  ----------
-*	  return
-*	  end
-*
-*	  the value of iflag should not be changed by fcn unless
-*	  the user wants to terminate execution of fdjac2.
-*	  in this case set iflag to a negative integer.
-*
-*	m is a positive integer input variable set to the number
-*	  of functions.
-*
-*	n is a positive integer input variable set to the number
-*	  of variables. n must not exceed m.
-*
-*	x is an input array of length n.
-*
-*	fvec is an input array of length m which must contain the
-*	  functions evaluated at x.
-*
-*	fjac is an output m by n array which contains the
-*	  approximation to the jacobian matrix evaluated at x.
-*
-*	ldfjac is a positive integer input variable not less than m
-*	  which specifies the leading dimension of the array fjac.
-*
-*	iflag is an integer variable which can be used to terminate
-*	  the execution of fdjac2. see description of fcn.
-*
-*	epsfcn is an input variable used in determining a suitable
-*	  step length for the forward-difference approximation. this
-*	  approximation assumes that the relative errors in the
-*	  functions are of the order of epsfcn. if epsfcn is less
-*	  than the machine precision, it is assumed that the relative
-*	  errors in the functions are of the order of the machine
-*	  precision.
-*
-*	wa is a work array of length m.
-*
-*     subprograms called
-*
-*	user-supplied ...... fcn
-*
-*	minpack-supplied ... dpmpar
-*
-*	fortran-supplied ... dabs,dmax1,dsqrt
-*
-*     argonne national laboratory. minpack project. march 1980.
-*     burton s. garbow, kenneth e. hillstrom, jorge j. more
-*
-      **********
-*/
-  int i,j,ij;
+  /*
+   *     **********
+   *
+   *     subroutine fdjac2
+   *
+   *     this subroutine computes a forward-difference approximation
+   *     to the m by n jacobian matrix associated with a specified
+   *     problem of m functions in n variables.
+   *
+   *     the subroutine statement is
+   *
+   *	subroutine fdjac2(fcn,m,n,x,fvec,fjac,ldfjac,iflag,epsfcn,wa)
+   *
+   *     where
+   *
+   *	fcn is the name of the user-supplied subroutine which
+   *	  calculates the functions. fcn must be declared
+   *	  in an external statement in the user calling
+   *	  program, and should be written as follows.
+   *
+   *	  subroutine fcn(m,n,x,fvec,iflag)
+   *	  integer m,n,iflag
+   *	  mp_real precision x(n),fvec(m)
+   *	  ----------
+   *	  calculate the functions at x and
+   *	  return this vector in fvec.
+   *	  ----------
+   *	  return
+   *	  end
+   *
+   *	  the value of iflag should not be changed by fcn unless
+   *	  the user wants to terminate execution of fdjac2.
+   *	  in this case set iflag to a negative integer.
+   *
+   *	m is a positive integer input variable set to the number
+   *	  of functions.
+   *
+   *	n is a positive integer input variable set to the number
+   *	  of variables. n must not exceed m.
+   *
+   *	x is an input array of length n.
+   *
+   *	fvec is an input array of length m which must contain the
+   *	  functions evaluated at x.
+   *
+   *	fjac is an output m by n array which contains the
+   *	  approximation to the jacobian matrix evaluated at x.
+   *
+   *	ldfjac is a positive integer input variable not less than m
+   *	  which specifies the leading dimension of the array fjac.
+   *
+   *	iflag is an integer variable which can be used to terminate
+   *	  the execution of fdjac2. see description of fcn.
+   *
+   *	epsfcn is an input variable used in determining a suitable
+   *	  step length for the forward-difference approximation. this
+   *	  approximation assumes that the relative errors in the
+   *	  functions are of the order of epsfcn. if epsfcn is less
+   *	  than the machine precision, it is assumed that the relative
+   *	  errors in the functions are of the order of the machine
+   *	  precision.
+   *
+   *	wa is a work array of length m.
+   *
+   *     subprograms called
+   *
+   *	user-supplied ...... fcn
+   *
+   *	minpack-supplied ... dpmpar
+   *
+   *	fortran-supplied ... dabs,dmax1,dsqrt
+   *
+   *     argonne national laboratory. minpack project. march 1980.
+   *     burton s. garbow, kenneth e. hillstrom, jorge j. more
+   *
+   **********
+   */
+  int i, j, ij;
   int iflag = 0;
-  mp_real eps,h,temp;
+  mp_real eps, h, temp;
   static mp_real zero = 0.0;
   int has_analytical_deriv = 0, has_numerical_deriv = 0;
   int has_debug_deriv = 0;
-  
-  temp = mp_dmax1(epsfcn,MP_MACHEP0);
+
+  temp = mp_dmax1(epsfcn, MP_MACHEP0);
   eps = mp_sqrt(temp);
   ij = 0;
-  ldfjac = 0;   /* Prevent compiler warning */
-  if (ldfjac){} /* Prevent compiler warning */
+  ldfjac = 0; /* Prevent compiler warning */
+  if (ldfjac)
+  {
+  } /* Prevent compiler warning */
 
-  for (j=0; j<npar; j++) dvec[j] = 0;
+  for (j = 0; j < npar; j++)
+    dvec[j] = 0;
 
   /* Initialize the Jacobian derivative matrix */
-  for (j=0; j<(n*m); j++) fjac[j] = 0;
+  for (j = 0; j < (n * m); j++)
+    fjac[j] = 0;
 
   /* Check for which parameters need analytical derivatives and which
      need numerical ones */
-  for (j=0; j<n; j++) {  /* Loop through free parameters only */
-    if (dside && dside[ifree[j]] == 3 && ddebug[ifree[j]] == 0) {
+  for (j = 0; j < n; j++)
+  { /* Loop through free parameters only */
+    if (dside && dside[ifree[j]] == 3 && ddebug[ifree[j]] == 0)
+    {
       /* Purely analytical derivatives */
-      dvec[ifree[j]] = fjac + j*m;
+      dvec[ifree[j]] = fjac + j * m;
       has_analytical_deriv = 1;
-    } else if (dside && ddebug[ifree[j]] == 1) {
+    }
+    else if (dside && ddebug[ifree[j]] == 1)
+    {
       /* Numerical and analytical derivatives as a debug cross-check */
-      dvec[ifree[j]] = fjac + j*m;
+      dvec[ifree[j]] = fjac + j * m;
       has_analytical_deriv = 1;
       has_numerical_deriv = 1;
       has_debug_deriv = 1;
-    } else {
+    }
+    else
+    {
       has_numerical_deriv = 1;
     }
   }
 
   /* If there are any parameters requiring analytical derivatives,
      then compute them first. */
-  if (has_analytical_deriv) {
+  if (has_analytical_deriv)
+  {
     iflag = mp_call(funct, m, npar, x, wa, dvec, priv);
-    if (nfev) *nfev = *nfev + 1;
-    if (iflag < 0 ) goto DONE;
+    if (nfev)
+      *nfev = *nfev + 1;
+    if (iflag < 0)
+      goto DONE;
   }
 
-  if (has_debug_deriv) {
+  if (has_debug_deriv)
+  {
     printf("FJAC DEBUG BEGIN\n");
-    printf("#  %10s %10s %10s %10s %10s %10s\n", 
-	   "IPNT", "FUNC", "DERIV_U", "DERIV_N", "DIFF_ABS", "DIFF_REL");
+    printf("#  %10s %10s %10s %10s %10s %10s\n",
+           "IPNT", "FUNC", "DERIV_U", "DERIV_N", "DIFF_ABS", "DIFF_REL");
   }
 
   /* Any parameters requiring numerical derivatives */
-  if (has_numerical_deriv) for (j=0; j<n; j++) {  /* Loop thru free parms */
-    int dsidei = (dside)?(dside[ifree[j]]):(0);
-    int debug  = ddebug[ifree[j]];
-    mp_real dr = ddrtol[ifree[j]], da = ddatol[ifree[j]];
-    
-    /* Check for debugging */
-    if (debug) {
-      printf("FJAC PARM %d\n", ifree[j]);
-    }
+  if (has_numerical_deriv)
+    for (j = 0; j < n; j++)
+    { /* Loop thru free parms */
+      int dsidei = (dside) ? (dside[ifree[j]]) : (0);
+      int debug = ddebug[ifree[j]];
+      mp_real dr = ddrtol[ifree[j]], da = ddatol[ifree[j]];
 
-    /* Skip parameters already done by user-computed partials */
-    if (dside && dsidei == 3) {
-      ij += m; /* still need to advance fjac pointer */
-      continue;
-    }
-
-    temp = x[ifree[j]];
-    h = eps * mp_fabs(temp);
-    if (step  &&  step[ifree[j]] > 0) h = step[ifree[j]];
-    if (dstep && dstep[ifree[j]] > 0) h = mp_fabs(dstep[ifree[j]]*temp);
-    if (h == zero)                    h = eps;
-
-    /* If negative step requested, or we are against the upper limit */
-    if ((dside && dsidei == -1) || 
-	(dside && dsidei == 0 && 
-	 qulimited && ulimit && qulimited[j] && 
-	 (temp > (ulimit[j]-h)))) {
-      h = -h;
-    }
-
-    x[ifree[j]] = temp + h;
-    iflag = mp_call(funct, m, npar, x, wa, 0, priv);
-    if (nfev) *nfev = *nfev + 1;
-    if (iflag < 0 ) goto DONE;
-    x[ifree[j]] = temp;
-
-    if (dsidei <= 1) {
-      /* COMPUTE THE ONE-SIDED DERIVATIVE */
-      if (! debug) {
-	/* Non-debug path for speed */
-	for (i=0; i<m; i++, ij++) {
-	  fjac[ij] = (wa[i] - fvec[i])/h; /* fjac[i+m*j] */
-	}
-      } else {
-	/* Debug path for correctness */
-	for (i=0; i<m; i++, ij++) {
-	  mp_real fjold = fjac[ij];
-	  fjac[ij] = (wa[i] - fvec[i])/h; /* fjac[i+m*j] */
-	  if ((da == 0 && dr == 0 && (fjold != 0 || fjac[ij] != 0)) ||
-	      ((da != 0 || dr != 0) && (mp_fabs(fjold-fjac[ij]) > da + mp_fabs(fjold)*dr))) {
-	    printf("   %10d %10.4g %10.4g %10.4g %10.4g %10.4g\n", 
-		   i, fvec[i], fjold, fjac[ij], fjold-fjac[ij], 
-		   (fjold == 0)?(0):((fjold-fjac[ij])/fjold));
-	  }
-	}
-      } /* end debugging */
-
-    } else {  /* dside > 2 */
-      /* COMPUTE THE TWO-SIDED DERIVATIVE */
-      for (i=0; i<m; i++) {
-	wa2[i] = wa[i];
+      /* Check for debugging */
+      if (debug)
+      {
+        printf("FJAC PARM %d\n", ifree[j]);
       }
 
-      /* Evaluate at x - h */
-      x[ifree[j]] = temp - h;
+      /* Skip parameters already done by user-computed partials */
+      if (dside && dsidei == 3)
+      {
+        ij += m; /* still need to advance fjac pointer */
+        continue;
+      }
+
+      temp = x[ifree[j]];
+      h = eps * mp_fabs(temp);
+      if (step && step[ifree[j]] > 0)
+        h = step[ifree[j]];
+      if (dstep && dstep[ifree[j]] > 0)
+        h = mp_fabs(dstep[ifree[j]] * temp);
+      if (h == zero)
+        h = eps;
+
+      /* If negative step requested, or we are against the upper limit */
+      if ((dside && dsidei == -1) ||
+          (dside && dsidei == 0 &&
+           qulimited && ulimit && qulimited[j] &&
+           (temp > (ulimit[j] - h))))
+      {
+        h = -h;
+      }
+
+      x[ifree[j]] = temp + h;
       iflag = mp_call(funct, m, npar, x, wa, 0, priv);
-      if (nfev) *nfev = *nfev + 1;
-      if (iflag < 0 ) goto DONE;
+      if (nfev)
+        *nfev = *nfev + 1;
+      if (iflag < 0)
+        goto DONE;
       x[ifree[j]] = temp;
 
-      /* Now compute derivative as (f(x+h) - f(x-h))/(2h) */
-      if (! debug ) {
-	/* Non-debug path for speed */
-	for (i=0; i<m; i++, ij++) {
-	  fjac[ij] = (wa2[ij] - wa[i])/(2*h); /* fjac[i+m*j] */
-	}
-      } else {
-	/* Debug path for correctness */
-	for (i=0; i<m; i++, ij++) {
-	  mp_real fjold = fjac[ij];
-	  fjac[ij] = (wa2[i] - wa[i])/(2*h); /* fjac[i+m*j] */
-	  if ((da == 0 && dr == 0 && (fjold != 0 || fjac[ij] != 0)) ||
-	      ((da != 0 || dr != 0) && (mp_fabs(fjold-fjac[ij]) > da + mp_fabs(fjold)*dr))) {
-	    printf("   %10d %10.4g %10.4g %10.4g %10.4g %10.4g\n", 
-		   i, fvec[i], fjold, fjac[ij], fjold-fjac[ij], 
-		   (fjold == 0)?(0):((fjold-fjac[ij])/fjold));
-	  }
-	}
-      } /* end debugging */
-      
-    } /* if (dside > 2) */
-  } /* if (has_numerical_derivative) */
+      if (dsidei <= 1)
+      {
+        /* COMPUTE THE ONE-SIDED DERIVATIVE */
+        if (!debug)
+        {
+          /* Non-debug path for speed */
+          for (i = 0; i < m; i++, ij++)
+          {
+            fjac[ij] = (wa[i] - fvec[i]) / h; /* fjac[i+m*j] */
+          }
+        }
+        else
+        {
+          /* Debug path for correctness */
+          for (i = 0; i < m; i++, ij++)
+          {
+            mp_real fjold = fjac[ij];
+            fjac[ij] = (wa[i] - fvec[i]) / h; /* fjac[i+m*j] */
+            if ((da == 0 && dr == 0 && (fjold != 0 || fjac[ij] != 0)) ||
+                ((da != 0 || dr != 0) && (mp_fabs(fjold - fjac[ij]) > da + mp_fabs(fjold) * dr)))
+            {
+              printf("   %10d %10.4g %10.4g %10.4g %10.4g %10.4g\n",
+                     i, fvec[i], fjold, fjac[ij], fjold - fjac[ij],
+                     (fjold == 0) ? (0) : ((fjold - fjac[ij]) / fjold));
+            }
+          }
+        } /* end debugging */
+      }
+      else
+      { /* dside > 2 */
+        /* COMPUTE THE TWO-SIDED DERIVATIVE */
+        for (i = 0; i < m; i++)
+        {
+          wa2[i] = wa[i];
+        }
 
-  if (has_debug_deriv) {
+        /* Evaluate at x - h */
+        x[ifree[j]] = temp - h;
+        iflag = mp_call(funct, m, npar, x, wa, 0, priv);
+        if (nfev)
+          *nfev = *nfev + 1;
+        if (iflag < 0)
+          goto DONE;
+        x[ifree[j]] = temp;
+
+        /* Now compute derivative as (f(x+h) - f(x-h))/(2h) */
+        if (!debug)
+        {
+          /* Non-debug path for speed */
+          for (i = 0; i < m; i++, ij++)
+          {
+            fjac[ij] = (wa2[ij] - wa[i]) / (2 * h); /* fjac[i+m*j] */
+          }
+        }
+        else
+        {
+          /* Debug path for correctness */
+          for (i = 0; i < m; i++, ij++)
+          {
+            mp_real fjold = fjac[ij];
+            fjac[ij] = (wa2[i] - wa[i]) / (2 * h); /* fjac[i+m*j] */
+            if ((da == 0 && dr == 0 && (fjold != 0 || fjac[ij] != 0)) ||
+                ((da != 0 || dr != 0) && (mp_fabs(fjold - fjac[ij]) > da + mp_fabs(fjold) * dr)))
+            {
+              printf("   %10d %10.4g %10.4g %10.4g %10.4g %10.4g\n",
+                     i, fvec[i], fjold, fjac[ij], fjold - fjac[ij],
+                     (fjold == 0) ? (0) : ((fjold - fjac[ij]) / fjold));
+            }
+          }
+        } /* end debugging */
+
+      } /* if (dside > 2) */
+    } /* if (has_numerical_derivative) */
+
+  if (has_debug_deriv)
+  {
     printf("FJAC DEBUG END\n");
   }
 
- DONE:
-  if (iflag < 0) return iflag;
-  return 0; 
+DONE:
+  if (iflag < 0)
+    return iflag;
+  return 0;
   /*
    *     last card of subroutine fdjac2.
    */
 }
 
-
 /************************qrfac.c*************************/
- 
-static 
-void mp_qrfac(int m, int n, mp_real *a, int lda, 
-	      int pivot, int *ipvt, int lipvt,
-	      mp_real *rdiag, mp_real *acnorm, mp_real *wa)
+
+static void mp_qrfac(int m, int n, mp_real *a, int lda,
+                     int pivot, int *ipvt, int lipvt,
+                     mp_real *rdiag, mp_real *acnorm, mp_real *wa)
 {
-/*
-*     **********
-*
-*     subroutine qrfac
-*
-*     this subroutine uses householder transformations with column
-*     pivoting (optional) to compute a qr factorization of the
-*     m by n matrix a. that is, qrfac determines an orthogonal
-*     matrix q, a permutation matrix p, and an upper trapezoidal
-*     matrix r with diagonal elements of nonincreasing magnitude,
-*     such that a*p = q*r. the householder transformation for
-*     column k, k = 1,2,...,min(m,n), is of the form
-*
-*			    t
-*	    i - (1/u(k))*u*u
-*
-*     where u has zeros in the first k-1 positions. the form of
-*     this transformation and the method of pivoting first
-*     appeared in the corresponding linpack subroutine.
-*
-*     the subroutine statement is
-*
-*	subroutine qrfac(m,n,a,lda,pivot,ipvt,lipvt,rdiag,acnorm,wa)
-*
-*     where
-*
-*	m is a positive integer input variable set to the number
-*	  of rows of a.
-*
-*	n is a positive integer input variable set to the number
-*	  of columns of a.
-*
-*	a is an m by n array. on input a contains the matrix for
-*	  which the qr factorization is to be computed. on output
-*	  the strict upper trapezoidal part of a contains the strict
-*	  upper trapezoidal part of r, and the lower trapezoidal
-*	  part of a contains a factored form of q (the non-trivial
-*	  elements of the u vectors described above).
-*
-*	lda is a positive integer input variable not less than m
-*	  which specifies the leading dimension of the array a.
-*
-*	pivot is a logical input variable. if pivot is set true,
-*	  then column pivoting is enforced. if pivot is set false,
-*	  then no column pivoting is done.
-*
-*	ipvt is an integer output array of length lipvt. ipvt
-*	  defines the permutation matrix p such that a*p = q*r.
-*	  column j of p is column ipvt(j) of the identity matrix.
-*	  if pivot is false, ipvt is not referenced.
-*
-*	lipvt is a positive integer input variable. if pivot is false,
-*	  then lipvt may be as small as 1. if pivot is true, then
-*	  lipvt must be at least n.
-*
-*	rdiag is an output array of length n which contains the
-*	  diagonal elements of r.
-*
-*	acnorm is an output array of length n which contains the
-*	  norms of the corresponding columns of the input matrix a.
-*	  if this information is not needed, then acnorm can coincide
-*	  with rdiag.
-*
-*	wa is a work array of length n. if pivot is false, then wa
-*	  can coincide with rdiag.
-*
-*     subprograms called
-*
-*	minpack-supplied ... dpmpar,enorm
-*
-*	fortran-supplied ... dmax1,dsqrt,min0
-*
-*     argonne national laboratory. minpack project. march 1980.
-*     burton s. garbow, kenneth e. hillstrom, jorge j. more
-*
-*     **********
-*/
-  int i,ij,jj,j,jp1,k,kmax,minmn;
-  mp_real ajnorm,sum,temp;
+  /*
+   *     **********
+   *
+   *     subroutine qrfac
+   *
+   *     this subroutine uses householder transformations with column
+   *     pivoting (optional) to compute a qr factorization of the
+   *     m by n matrix a. that is, qrfac determines an orthogonal
+   *     matrix q, a permutation matrix p, and an upper trapezoidal
+   *     matrix r with diagonal elements of nonincreasing magnitude,
+   *     such that a*p = q*r. the householder transformation for
+   *     column k, k = 1,2,...,min(m,n), is of the form
+   *
+   *			    t
+   *	    i - (1/u(k))*u*u
+   *
+   *     where u has zeros in the first k-1 positions. the form of
+   *     this transformation and the method of pivoting first
+   *     appeared in the corresponding linpack subroutine.
+   *
+   *     the subroutine statement is
+   *
+   *	subroutine qrfac(m,n,a,lda,pivot,ipvt,lipvt,rdiag,acnorm,wa)
+   *
+   *     where
+   *
+   *	m is a positive integer input variable set to the number
+   *	  of rows of a.
+   *
+   *	n is a positive integer input variable set to the number
+   *	  of columns of a.
+   *
+   *	a is an m by n array. on input a contains the matrix for
+   *	  which the qr factorization is to be computed. on output
+   *	  the strict upper trapezoidal part of a contains the strict
+   *	  upper trapezoidal part of r, and the lower trapezoidal
+   *	  part of a contains a factored form of q (the non-trivial
+   *	  elements of the u vectors described above).
+   *
+   *	lda is a positive integer input variable not less than m
+   *	  which specifies the leading dimension of the array a.
+   *
+   *	pivot is a logical input variable. if pivot is set true,
+   *	  then column pivoting is enforced. if pivot is set false,
+   *	  then no column pivoting is done.
+   *
+   *	ipvt is an integer output array of length lipvt. ipvt
+   *	  defines the permutation matrix p such that a*p = q*r.
+   *	  column j of p is column ipvt(j) of the identity matrix.
+   *	  if pivot is false, ipvt is not referenced.
+   *
+   *	lipvt is a positive integer input variable. if pivot is false,
+   *	  then lipvt may be as small as 1. if pivot is true, then
+   *	  lipvt must be at least n.
+   *
+   *	rdiag is an output array of length n which contains the
+   *	  diagonal elements of r.
+   *
+   *	acnorm is an output array of length n which contains the
+   *	  norms of the corresponding columns of the input matrix a.
+   *	  if this information is not needed, then acnorm can coincide
+   *	  with rdiag.
+   *
+   *	wa is a work array of length n. if pivot is false, then wa
+   *	  can coincide with rdiag.
+   *
+   *     subprograms called
+   *
+   *	minpack-supplied ... dpmpar,enorm
+   *
+   *	fortran-supplied ... dmax1,dsqrt,min0
+   *
+   *     argonne national laboratory. minpack project. march 1980.
+   *     burton s. garbow, kenneth e. hillstrom, jorge j. more
+   *
+   *     **********
+   */
+  int i, ij, jj, j, jp1, k, kmax, minmn;
+  mp_real ajnorm, sum, temp;
   static mp_real zero = 0.0;
   static mp_real one = 1.0;
   static mp_real p05 = 0.05;
 
-  lda = 0;      /* Prevent compiler warning */
-  lipvt = 0;    /* Prevent compiler warning */
-  if (lda) {}   /* Prevent compiler warning */
-  if (lipvt) {} /* Prevent compiler warning */
+  lda = 0;   /* Prevent compiler warning */
+  lipvt = 0; /* Prevent compiler warning */
+  if (lda)
+  {
+  } /* Prevent compiler warning */
+  if (lipvt)
+  {
+  } /* Prevent compiler warning */
 
   /*
    *     compute the initial column norms and initialize several arrays.
    */
   ij = 0;
-  for (j=0; j<n; j++) {
-    acnorm[j] = mp_enorm(m,&a[ij]);
+  for (j = 0; j < n; j++)
+  {
+    acnorm[j] = mp_enorm(m, &a[ij]);
     rdiag[j] = acnorm[j];
     wa[j] = rdiag[j];
     if (pivot != 0)
@@ -1339,55 +1545,56 @@ void mp_qrfac(int m, int n, mp_real *a, int lda,
   /*
    *     reduce a to r with householder transformations.
    */
-  minmn = mp_min0(m,n);
-  for (j=0; j<minmn; j++) {
+  minmn = mp_min0(m, n);
+  for (j = 0; j < minmn; j++)
+  {
     if (pivot == 0)
       goto L40;
     /*
      *	 bring the column of largest norm into the pivot position.
      */
     kmax = j;
-    for (k=j; k<n; k++)
-      {
-	if (rdiag[k] > rdiag[kmax])
-	  kmax = k;
-      }
+    for (k = j; k < n; k++)
+    {
+      if (rdiag[k] > rdiag[kmax])
+        kmax = k;
+    }
     if (kmax == j)
       goto L40;
-      
+
     ij = m * j;
     jj = m * kmax;
-    for (i=0; i<m; i++)
-      {
-	temp = a[ij]; /* [i+m*j] */
-	a[ij] = a[jj]; /* [i+m*kmax] */
-	a[jj] = temp;
-	ij += 1;
-	jj += 1;
-      }
+    for (i = 0; i < m; i++)
+    {
+      temp = a[ij];  /* [i+m*j] */
+      a[ij] = a[jj]; /* [i+m*kmax] */
+      a[jj] = temp;
+      ij += 1;
+      jj += 1;
+    }
     rdiag[kmax] = rdiag[j];
     wa[kmax] = wa[j];
     k = ipvt[j];
     ipvt[j] = ipvt[kmax];
     ipvt[kmax] = k;
-      
+
   L40:
     /*
      *	 compute the householder transformation to reduce the
      *	 j-th column of a to a multiple of the j-th unit vector.
      */
-    jj = j + m*j;
-    ajnorm = mp_enorm(m-j,&a[jj]);
+    jj = j + m * j;
+    ajnorm = mp_enorm(m - j, &a[jj]);
     if (ajnorm == zero)
       goto L100;
     if (a[jj] < zero)
       ajnorm = -ajnorm;
     ij = jj;
-    for (i=j; i<m; i++)
-      {
-	a[ij] /= ajnorm;
-	ij += 1; /* [i+m*j] */
-      }
+    for (i = j; i < m; i++)
+    {
+      a[ij] /= ajnorm;
+      ij += 1; /* [i+m*j] */
+    }
     a[jj] += one;
     /*
      *	 apply the transformation to the remaining columns
@@ -1395,42 +1602,42 @@ void mp_qrfac(int m, int n, mp_real *a, int lda,
      */
     jp1 = j + 1;
     if (jp1 < n)
+    {
+      for (k = jp1; k < n; k++)
       {
-	for (k=jp1; k<n; k++)
-	  {
-	    sum = zero;
-	    ij = j + m*k;
-	    jj = j + m*j;
-	    for (i=j; i<m; i++)
-	      {
-		sum += a[jj]*a[ij];
-		ij += 1; /* [i+m*k] */
-		jj += 1; /* [i+m*j] */
-	      }
-	    temp = sum/a[j+m*j];
-	    ij = j + m*k;
-	    jj = j + m*j;
-	    for (i=j; i<m; i++)
-	      {
-		a[ij] -= temp*a[jj];
-		ij += 1; /* [i+m*k] */
-		jj += 1; /* [i+m*j] */
-	      }
-	    if ((pivot != 0) && (rdiag[k] != zero))
-	      {
-		temp = a[j+m*k]/rdiag[k];
-		temp = mp_dmax1( zero, one-temp*temp );
-		rdiag[k] *= mp_sqrt(temp);
-		temp = rdiag[k]/wa[k];
-		if ((p05*temp*temp) <= MP_MACHEP0)
-		  {
-		    rdiag[k] = mp_enorm(m-j-1,&a[jp1+m*k]);
-		    wa[k] = rdiag[k];
-		  }
-	      }
-	  }
+        sum = zero;
+        ij = j + m * k;
+        jj = j + m * j;
+        for (i = j; i < m; i++)
+        {
+          sum += a[jj] * a[ij];
+          ij += 1; /* [i+m*k] */
+          jj += 1; /* [i+m*j] */
+        }
+        temp = sum / a[j + m * j];
+        ij = j + m * k;
+        jj = j + m * j;
+        for (i = j; i < m; i++)
+        {
+          a[ij] -= temp * a[jj];
+          ij += 1; /* [i+m*k] */
+          jj += 1; /* [i+m*j] */
+        }
+        if ((pivot != 0) && (rdiag[k] != zero))
+        {
+          temp = a[j + m * k] / rdiag[k];
+          temp = mp_dmax1(zero, one - temp * temp);
+          rdiag[k] *= mp_sqrt(temp);
+          temp = rdiag[k] / wa[k];
+          if ((p05 * temp * temp) <= MP_MACHEP0)
+          {
+            rdiag[k] = mp_enorm(m - j - 1, &a[jp1 + m * k]);
+            wa[k] = rdiag[k];
+          }
+        }
       }
-      
+    }
+
   L100:
     rdiag[j] = -ajnorm;
   }
@@ -1441,118 +1648,119 @@ void mp_qrfac(int m, int n, mp_real *a, int lda,
 
 /************************qrsolv.c*************************/
 
-static 
-void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
-	       mp_real *qtb, mp_real *x, mp_real *sdiag, mp_real *wa)
+static void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
+                      mp_real *qtb, mp_real *x, mp_real *sdiag, mp_real *wa)
 {
-/*
-*     **********
-*
-*     subroutine qrsolv
-*
-*     given an m by n matrix a, an n by n diagonal matrix d,
-*     and an m-vector b, the problem is to determine an x which
-*     solves the system
-*
-*	    a*x = b ,	  d*x = 0 ,
-*
-*     in the least squares sense.
-*
-*     this subroutine completes the solution of the problem
-*     if it is provided with the necessary information from the
-*     qr factorization, with column pivoting, of a. that is, if
-*     a*p = q*r, where p is a permutation matrix, q has orthogonal
-*     columns, and r is an upper triangular matrix with diagonal
-*     elements of nonincreasing magnitude, then qrsolv expects
-*     the full upper triangle of r, the permutation matrix p,
-*     and the first n components of (q transpose)*b. the system
-*     a*x = b, d*x = 0, is then equivalent to
-*
-*		   t	   t
-*	    r*z = q *b ,  p *d*p*z = 0 ,
-*
-*     where x = p*z. if this system does not have full rank,
-*     then a least squares solution is obtained. on output qrsolv
-*     also provides an upper triangular matrix s such that
-*
-*	     t	 t		 t
-*	    p *(a *a + d*d)*p = s *s .
-*
-*     s is computed within qrsolv and may be of separate interest.
-*
-*     the subroutine statement is
-*
-*	subroutine qrsolv(n,r,ldr,ipvt,diag,qtb,x,sdiag,wa)
-*
-*     where
-*
-*	n is a positive integer input variable set to the order of r.
-*
-*	r is an n by n array. on input the full upper triangle
-*	  must contain the full upper triangle of the matrix r.
-*	  on output the full upper triangle is unaltered, and the
-*	  strict lower triangle contains the strict upper triangle
-*	  (transposed) of the upper triangular matrix s.
-*
-*	ldr is a positive integer input variable not less than n
-*	  which specifies the leading dimension of the array r.
-*
-*	ipvt is an integer input array of length n which defines the
-*	  permutation matrix p such that a*p = q*r. column j of p
-*	  is column ipvt(j) of the identity matrix.
-*
-*	diag is an input array of length n which must contain the
-*	  diagonal elements of the matrix d.
-*
-*	qtb is an input array of length n which must contain the first
-*	  n elements of the vector (q transpose)*b.
-*
-*	x is an output array of length n which contains the least
-*	  squares solution of the system a*x = b, d*x = 0.
-*
-*	sdiag is an output array of length n which contains the
-*	  diagonal elements of the upper triangular matrix s.
-*
-*	wa is a work array of length n.
-*
-*     subprograms called
-*
-*	fortran-supplied ... dabs,dsqrt
-*
-*     argonne national laboratory. minpack project. march 1980.
-*     burton s. garbow, kenneth e. hillstrom, jorge j. more
-*
-*     **********
-*/
-  int i,ij,ik,kk,j,jp1,k,kp1,l,nsing;
-  mp_real cosx,cotan,qtbpj,sinx,sum,tanx,temp;
+  /*
+   *     **********
+   *
+   *     subroutine qrsolv
+   *
+   *     given an m by n matrix a, an n by n diagonal matrix d,
+   *     and an m-vector b, the problem is to determine an x which
+   *     solves the system
+   *
+   *	    a*x = b ,	  d*x = 0 ,
+   *
+   *     in the least squares sense.
+   *
+   *     this subroutine completes the solution of the problem
+   *     if it is provided with the necessary information from the
+   *     qr factorization, with column pivoting, of a. that is, if
+   *     a*p = q*r, where p is a permutation matrix, q has orthogonal
+   *     columns, and r is an upper triangular matrix with diagonal
+   *     elements of nonincreasing magnitude, then qrsolv expects
+   *     the full upper triangle of r, the permutation matrix p,
+   *     and the first n components of (q transpose)*b. the system
+   *     a*x = b, d*x = 0, is then equivalent to
+   *
+   *		   t	   t
+   *	    r*z = q *b ,  p *d*p*z = 0 ,
+   *
+   *     where x = p*z. if this system does not have full rank,
+   *     then a least squares solution is obtained. on output qrsolv
+   *     also provides an upper triangular matrix s such that
+   *
+   *	     t	 t		 t
+   *	    p *(a *a + d*d)*p = s *s .
+   *
+   *     s is computed within qrsolv and may be of separate interest.
+   *
+   *     the subroutine statement is
+   *
+   *	subroutine qrsolv(n,r,ldr,ipvt,diag,qtb,x,sdiag,wa)
+   *
+   *     where
+   *
+   *	n is a positive integer input variable set to the order of r.
+   *
+   *	r is an n by n array. on input the full upper triangle
+   *	  must contain the full upper triangle of the matrix r.
+   *	  on output the full upper triangle is unaltered, and the
+   *	  strict lower triangle contains the strict upper triangle
+   *	  (transposed) of the upper triangular matrix s.
+   *
+   *	ldr is a positive integer input variable not less than n
+   *	  which specifies the leading dimension of the array r.
+   *
+   *	ipvt is an integer input array of length n which defines the
+   *	  permutation matrix p such that a*p = q*r. column j of p
+   *	  is column ipvt(j) of the identity matrix.
+   *
+   *	diag is an input array of length n which must contain the
+   *	  diagonal elements of the matrix d.
+   *
+   *	qtb is an input array of length n which must contain the first
+   *	  n elements of the vector (q transpose)*b.
+   *
+   *	x is an output array of length n which contains the least
+   *	  squares solution of the system a*x = b, d*x = 0.
+   *
+   *	sdiag is an output array of length n which contains the
+   *	  diagonal elements of the upper triangular matrix s.
+   *
+   *	wa is a work array of length n.
+   *
+   *     subprograms called
+   *
+   *	fortran-supplied ... dabs,dsqrt
+   *
+   *     argonne national laboratory. minpack project. march 1980.
+   *     burton s. garbow, kenneth e. hillstrom, jorge j. more
+   *
+   *     **********
+   */
+  int i, ij, ik, kk, j, jp1, k, kp1, l, nsing;
+  mp_real cosx, cotan, qtbpj, sinx, sum, tanx, temp;
   static mp_real zero = 0.0;
   static mp_real p25 = 0.25;
   static mp_real p5 = 0.5;
-  
+
   /*
    *     copy r and (q transpose)*b to preserve input and initialize s.
    *     in particular, save the diagonal elements of r in x.
    */
   kk = 0;
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     ij = kk;
     ik = kk;
-    for (i=j; i<n; i++)
-      {
-	r[ij] = r[ik];
-	ij += 1;   /* [i+ldr*j] */
-	ik += ldr; /* [j+ldr*i] */
-      }
+    for (i = j; i < n; i++)
+    {
+      r[ij] = r[ik];
+      ij += 1;   /* [i+ldr*j] */
+      ik += ldr; /* [j+ldr*i] */
+    }
     x[j] = r[kk];
     wa[j] = qtb[j];
-    kk += ldr+1; /* j+ldr*j */
+    kk += ldr + 1; /* j+ldr*j */
   }
 
   /*
    *     eliminate the diagonal matrix d using a givens rotation.
    */
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     /*
      *	 prepare the row of d to be eliminated, locating the
      *	 diagonal element using p from the qr factorization.
@@ -1560,7 +1768,7 @@ void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
     l = ipvt[j];
     if (diag[l] == zero)
       goto L90;
-    for (k=j; k<n; k++)
+    for (k = j; k < n; k++)
       sdiag[k] = zero;
     sdiag[j] = diag[l];
     /*
@@ -1569,57 +1777,57 @@ void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
      *	 beyond the first n, which is initially zero.
      */
     qtbpj = zero;
-    for (k=j; k<n; k++)
+    for (k = j; k < n; k++)
+    {
+      /*
+       *	    determine a givens rotation which eliminates the
+       *	    appropriate element in the current row of d.
+       */
+      if (sdiag[k] == zero)
+        continue;
+      kk = k + ldr * k;
+      if (mp_fabs(r[kk]) < mp_fabs(sdiag[k]))
       {
-	/*
-	 *	    determine a givens rotation which eliminates the
-	 *	    appropriate element in the current row of d.
-	 */
-	if (sdiag[k] == zero)
-	  continue;
-	kk = k + ldr * k;
-	if (mp_fabs(r[kk]) < mp_fabs(sdiag[k]))
-	  {
-	    cotan = r[kk]/sdiag[k];
-	    sinx = p5/mp_sqrt(p25+p25*cotan*cotan);
-	    cosx = sinx*cotan;
-	  }
-	else
-	  {
-	    tanx = sdiag[k]/r[kk];
-	    cosx = p5/mp_sqrt(p25+p25*tanx*tanx);
-	    sinx = cosx*tanx;
-	  }
-	/*
-	 *	    compute the modified diagonal element of r and
-	 *	    the modified element of ((q transpose)*b,0).
-	 */
-	r[kk] = cosx*r[kk] + sinx*sdiag[k];
-	temp = cosx*wa[k] + sinx*qtbpj;
-	qtbpj = -sinx*wa[k] + cosx*qtbpj;
-	wa[k] = temp;
-	/*
-	 *	    accumulate the tranformation in the row of s.
-	 */
-	kp1 = k + 1;
-	if (n > kp1)
-	  {
-	    ik = kk + 1;
-	    for (i=kp1; i<n; i++)
-	      {
-		temp = cosx*r[ik] + sinx*sdiag[i];
-		sdiag[i] = -sinx*r[ik] + cosx*sdiag[i];
-		r[ik] = temp;
-		ik += 1; /* [i+ldr*k] */
-	      }
-	  }
+        cotan = r[kk] / sdiag[k];
+        sinx = p5 / mp_sqrt(p25 + p25 * cotan * cotan);
+        cosx = sinx * cotan;
       }
+      else
+      {
+        tanx = sdiag[k] / r[kk];
+        cosx = p5 / mp_sqrt(p25 + p25 * tanx * tanx);
+        sinx = cosx * tanx;
+      }
+      /*
+       *	    compute the modified diagonal element of r and
+       *	    the modified element of ((q transpose)*b,0).
+       */
+      r[kk] = cosx * r[kk] + sinx * sdiag[k];
+      temp = cosx * wa[k] + sinx * qtbpj;
+      qtbpj = -sinx * wa[k] + cosx * qtbpj;
+      wa[k] = temp;
+      /*
+       *	    accumulate the tranformation in the row of s.
+       */
+      kp1 = k + 1;
+      if (n > kp1)
+      {
+        ik = kk + 1;
+        for (i = kp1; i < n; i++)
+        {
+          temp = cosx * r[ik] + sinx * sdiag[i];
+          sdiag[i] = -sinx * r[ik] + cosx * sdiag[i];
+          r[ik] = temp;
+          ik += 1; /* [i+ldr*k] */
+        }
+      }
+    }
   L90:
     /*
      *	 store the diagonal element of s and restore
      *	 the corresponding diagonal element of r.
      */
-    kk = j + ldr*j;
+    kk = j + ldr * j;
     sdiag[j] = r[kk];
     r[kk] = x[j];
   }
@@ -1628,7 +1836,8 @@ void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
    *     singular, then obtain a least squares solution.
    */
   nsing = n;
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     if ((sdiag[j] == zero) && (nsing == n))
       nsing = j;
     if (nsing < n)
@@ -1636,27 +1845,29 @@ void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
   }
   if (nsing < 1)
     goto L150;
-  
-  for (k=0; k<nsing; k++) {
+
+  for (k = 0; k < nsing; k++)
+  {
     j = nsing - k - 1;
     sum = zero;
     jp1 = j + 1;
     if (nsing > jp1)
+    {
+      ij = jp1 + ldr * j;
+      for (i = jp1; i < nsing; i++)
       {
-	ij = jp1 + ldr * j;
-	for (i=jp1; i<nsing; i++)
-	  {
-	    sum += r[ij]*wa[i];
-	    ij += 1; /* [i+ldr*j] */
-	  }
+        sum += r[ij] * wa[i];
+        ij += 1; /* [i+ldr*j] */
       }
-    wa[j] = (wa[j] - sum)/sdiag[j];
+    }
+    wa[j] = (wa[j] - sum) / sdiag[j];
   }
- L150:
+L150:
   /*
    *     permute the components of z back to components of x.
    */
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     l = ipvt[j];
     x[l] = wa[j];
   }
@@ -1667,10 +1878,9 @@ void mp_qrsolv(int n, mp_real *r, int ldr, int *ipvt, mp_real *diag,
 
 /************************lmpar.c*************************/
 
-static 
-void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
-	      mp_real *qtb, mp_real delta, mp_real *par, mp_real *x,
-	      mp_real *sdiag, mp_real *wa1, mp_real *wa2) 
+static void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
+                     mp_real *qtb, mp_real delta, mp_real *par, mp_real *x,
+                     mp_real *sdiag, mp_real *wa1, mp_real *wa2)
 {
   /*     **********
    *
@@ -1767,49 +1977,52 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    *
    *     **********
    */
-  int i,iter,ij,jj,j,jm1,jp1,k,l,nsing;
-  mp_real dxnorm,fp,gnorm,parc,parl,paru;
-  mp_real sum,temp;
+  int i, iter, ij, jj, j, jm1, jp1, k, l, nsing;
+  mp_real dxnorm, fp, gnorm, parc, parl, paru;
+  mp_real sum, temp;
   static mp_real zero = 0.0;
   /* static mp_real one = 1.0; */
   static mp_real p1 = 0.1;
   static mp_real p001 = 0.001;
-  
+
   /*
    *     compute and store in x the gauss-newton direction. if the
    *     jacobian is rank-deficient, obtain a least squares solution.
    */
   nsing = n;
   jj = 0;
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     wa1[j] = qtb[j];
     if ((r[jj] == zero) && (nsing == n))
       nsing = j;
     if (nsing < n)
       wa1[j] = zero;
-    jj += ldr+1; /* [j+ldr*j] */
+    jj += ldr + 1; /* [j+ldr*j] */
   }
 
-  if (nsing >= 1) {
-    for (k=0; k<nsing; k++)
+  if (nsing >= 1)
+  {
+    for (k = 0; k < nsing; k++)
+    {
+      j = nsing - k - 1;
+      wa1[j] = wa1[j] / r[j + ldr * j];
+      temp = wa1[j];
+      jm1 = j - 1;
+      if (jm1 >= 0)
       {
-	j = nsing - k - 1;
-	wa1[j] = wa1[j]/r[j+ldr*j];
-	temp = wa1[j];
-	jm1 = j - 1;
-	if (jm1 >= 0)
-	  {
-	    ij = ldr * j;
-	    for (i=0; i<=jm1; i++)
-	      {
-		wa1[i] -= r[ij]*temp;
-		ij += 1;
-	      }
-	  }
+        ij = ldr * j;
+        for (i = 0; i <= jm1; i++)
+        {
+          wa1[i] -= r[ij] * temp;
+          ij += 1;
+        }
       }
+    }
   }
-  
-  for (j=0; j<n; j++) {
+
+  for (j = 0; j < n; j++)
+  {
     l = ipvt[j];
     x[l] = wa1[j];
   }
@@ -1819,11 +2032,12 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    *     for acceptance of the gauss-newton direction.
    */
   iter = 0;
-  for (j=0; j<n; j++)
-    wa2[j] = diag[ifree[j]]*x[j];
-  dxnorm = mp_enorm(n,wa2);
+  for (j = 0; j < n; j++)
+    wa2[j] = diag[ifree[j]] * x[j];
+  dxnorm = mp_enorm(n, wa2);
   fp = dxnorm - delta;
-  if (fp <= p1*delta) {
+  if (fp <= p1 * delta)
+  {
     goto L220;
   }
   /*
@@ -1832,78 +2046,80 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    *     the function. otherwise set this bound to zero.
    */
   parl = zero;
-  if (nsing >= n) {
-    for (j=0; j<n; j++)
-      {
-	l = ipvt[j];
-	wa1[j] = diag[ifree[l]]*(wa2[l]/dxnorm);
-      }
+  if (nsing >= n)
+  {
+    for (j = 0; j < n; j++)
+    {
+      l = ipvt[j];
+      wa1[j] = diag[ifree[l]] * (wa2[l] / dxnorm);
+    }
     jj = 0;
-    for (j=0; j<n; j++)
+    for (j = 0; j < n; j++)
+    {
+      sum = zero;
+      jm1 = j - 1;
+      if (jm1 >= 0)
       {
-	sum = zero;
-	jm1 = j - 1;
-	if (jm1 >= 0)
-	  {
-	    ij = jj;
-	    for (i=0; i<=jm1; i++)
-	      {
-		sum += r[ij]*wa1[i];
-		ij += 1;
-	      }
-	  }
-	wa1[j] = (wa1[j] - sum)/r[j+ldr*j];
-	jj += ldr; /* [i+ldr*j] */
+        ij = jj;
+        for (i = 0; i <= jm1; i++)
+        {
+          sum += r[ij] * wa1[i];
+          ij += 1;
+        }
       }
-    temp = mp_enorm(n,wa1);
-    parl = ((fp/delta)/temp)/temp;
+      wa1[j] = (wa1[j] - sum) / r[j + ldr * j];
+      jj += ldr; /* [i+ldr*j] */
+    }
+    temp = mp_enorm(n, wa1);
+    parl = ((fp / delta) / temp) / temp;
   }
   /*
    *     calculate an upper bound, paru, for the zero of the function.
    */
   jj = 0;
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     sum = zero;
     ij = jj;
-    for (i=0; i<=j; i++)
-      {
-	sum += r[ij]*qtb[i];
-	ij += 1;
-      }
+    for (i = 0; i <= j; i++)
+    {
+      sum += r[ij] * qtb[i];
+      ij += 1;
+    }
     l = ipvt[j];
-    wa1[j] = sum/diag[ifree[l]];
+    wa1[j] = sum / diag[ifree[l]];
     jj += ldr; /* [i+ldr*j] */
   }
-  gnorm = mp_enorm(n,wa1);
-  paru = gnorm/delta;
+  gnorm = mp_enorm(n, wa1);
+  paru = gnorm / delta;
   if (paru == zero)
-    paru = MP_DWARF/mp_dmin1(delta,p1);
+    paru = MP_DWARF / mp_dmin1(delta, p1);
   /*
    *     if the input par lies outside of the interval (parl,paru),
    *     set par to the closer endpoint.
    */
-  *par = mp_dmax1( *par,parl);
-  *par = mp_dmin1( *par,paru);
+  *par = mp_dmax1(*par, parl);
+  *par = mp_dmin1(*par, paru);
   if (*par == zero)
-    *par = gnorm/dxnorm;
+    *par = gnorm / dxnorm;
 
   /*
    *     beginning of an iteration.
    */
- L150:
+L150:
   iter += 1;
   /*
    *	 evaluate the function at the current value of par.
    */
   if (*par == zero)
-    *par = mp_dmax1(MP_DWARF,p001*paru);
-  temp = mp_sqrt( *par );
-  for (j=0; j<n; j++)
-    wa1[j] = temp*diag[ifree[j]];
-  mp_qrsolv(n,r,ldr,ipvt,wa1,qtb,x,sdiag,wa2);
-  for (j=0; j<n; j++)
-    wa2[j] = diag[ifree[j]]*x[j];
-  dxnorm = mp_enorm(n,wa2);
+    *par = mp_dmax1(MP_DWARF, p001 * paru);
+  temp = mp_sqrt(*par);
+  for (j = 0; j < n; j++)
+    wa1[j] = temp * diag[ifree[j]];
+  mp_qrsolv(n, r, ldr, ipvt, wa1, qtb, x, sdiag, wa2);
+  for (j = 0; j < n; j++)
+    wa2[j] = diag[ifree[j]] * x[j];
+  dxnorm = mp_enorm(n, wa2);
   temp = fp;
   fp = dxnorm - delta;
   /*
@@ -1911,35 +2127,35 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    *	 of par. also test for the exceptional cases where parl
    *	 is zero or the number of iterations has reached 10.
    */
-  if ((mp_fabs(fp) <= p1*delta)
-      || ((parl == zero) && (fp <= temp) && (temp < zero))
-      || (iter == 10))
+  if ((mp_fabs(fp) <= p1 * delta) || ((parl == zero) && (fp <= temp) && (temp < zero)) || (iter == 10))
     goto L220;
   /*
    *	 compute the newton correction.
    */
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     l = ipvt[j];
-    wa1[j] = diag[ifree[l]]*(wa2[l]/dxnorm);
+    wa1[j] = diag[ifree[l]] * (wa2[l] / dxnorm);
   }
   jj = 0;
-  for (j=0; j<n; j++) {
-    wa1[j] = wa1[j]/sdiag[j];
+  for (j = 0; j < n; j++)
+  {
+    wa1[j] = wa1[j] / sdiag[j];
     temp = wa1[j];
     jp1 = j + 1;
     if (jp1 < n)
+    {
+      ij = jp1 + jj;
+      for (i = jp1; i < n; i++)
       {
-	ij = jp1 + jj;
-	for (i=jp1; i<n; i++)
-	  {
-	    wa1[i] -= r[ij]*temp;
-	    ij += 1; /* [i+ldr*j] */
-	  }
+        wa1[i] -= r[ij] * temp;
+        ij += 1; /* [i+ldr*j] */
       }
+    }
     jj += ldr; /* ldr*j */
   }
-  temp = mp_enorm(n,wa1);
-  parc = ((fp/delta)/temp)/temp;
+  temp = mp_enorm(n, wa1);
+  parc = ((fp / delta) / temp) / temp;
   /*
    *	 depending on the sign of the function, update parl or paru.
    */
@@ -1955,8 +2171,8 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    *	 end of an iteration.
    */
   goto L150;
-  
- L220:
+
+L220:
   /*
    *     termination.
    */
@@ -1967,11 +2183,9 @@ void mp_lmpar(int n, mp_real *r, int ldr, int *ipvt, int *ifree, mp_real *diag,
    */
 }
 
-
 /************************enorm.c*************************/
- 
-static 
-mp_real mp_enorm(int n, mp_real *x) 
+
+static mp_real mp_enorm(int n, mp_real *x)
 {
   /*
    *     **********
@@ -2013,88 +2227,91 @@ mp_real mp_enorm(int n, mp_real *x)
    *     **********
    */
   int i;
-  mp_real agiant,floatn,s1,s2,s3,xabs,x1max,x3max;
+  mp_real agiant, floatn, s1, s2, s3, xabs, x1max, x3max;
   mp_real ans, temp;
   mp_real rdwarf = MP_RDWARF;
   mp_real rgiant = MP_RGIANT;
   static mp_real zero = 0.0;
   static mp_real one = 1.0;
-  
+
   s1 = zero;
   s2 = zero;
   s3 = zero;
   x1max = zero;
   x3max = zero;
   floatn = n;
-  agiant = rgiant/floatn;
-  
-  for (i=0; i<n; i++) {
+  agiant = rgiant / floatn;
+
+  for (i = 0; i < n; i++)
+  {
     xabs = mp_fabs(x[i]);
     if ((xabs > rdwarf) && (xabs < agiant))
-      {
-	/*
-	 *	    sum for intermediate components.
-	 */
-	s2 += xabs*xabs;
-	continue;
-      }
-      
+    {
+      /*
+       *	    sum for intermediate components.
+       */
+      s2 += xabs * xabs;
+      continue;
+    }
+
     if (xabs > rdwarf)
+    {
+      /*
+       *	       sum for large components.
+       */
+      if (xabs > x1max)
       {
-	/*
-	 *	       sum for large components.
-	 */
-	if (xabs > x1max)
-	  {
-	    temp = x1max/xabs;
-	    s1 = one + s1*temp*temp;
-	    x1max = xabs;
-	  }
-	else
-	  {
-	    temp = xabs/x1max;
-	    s1 += temp*temp;
-	  }
-	continue;
+        temp = x1max / xabs;
+        s1 = one + s1 * temp * temp;
+        x1max = xabs;
       }
+      else
+      {
+        temp = xabs / x1max;
+        s1 += temp * temp;
+      }
+      continue;
+    }
     /*
      *	       sum for small components.
      */
     if (xabs > x3max)
+    {
+      temp = x3max / xabs;
+      s3 = one + s3 * temp * temp;
+      x3max = xabs;
+    }
+    else
+    {
+      if (xabs != zero)
       {
-	temp = x3max/xabs;
-	s3 = one + s3*temp*temp;
-	x3max = xabs;
+        temp = xabs / x3max;
+        s3 += temp * temp;
       }
-    else	
-      {
-	if (xabs != zero)
-	  {
-	    temp = xabs/x3max;
-	    s3 += temp*temp;
-	  }
-      }
+    }
   }
   /*
    *     calculation of norm.
    */
-  if (s1 != zero) {
-    temp = s1 + (s2/x1max)/x1max;
-    ans = x1max*mp_sqrt(temp);
-    return(ans);
+  if (s1 != zero)
+  {
+    temp = s1 + (s2 / x1max) / x1max;
+    ans = x1max * mp_sqrt(temp);
+    return (ans);
   }
-  if (s2 != zero) {
+  if (s2 != zero)
+  {
     if (s2 >= x3max)
-      temp = s2*(one+(x3max/s2)*(x3max*s3));
+      temp = s2 * (one + (x3max / s2) * (x3max * s3));
     else
-      temp = x3max*((s2/x3max)+(x3max*s3));
+      temp = x3max * ((s2 / x3max) + (x3max * s3));
     ans = mp_sqrt(temp);
   }
   else
-    {
-      ans = x3max*mp_sqrt(s3);
-    }
-  return(ans);
+  {
+    ans = x3max * mp_sqrt(s3);
+  }
+  return (ans);
   /*
    *     last card of function enorm.
    */
@@ -2102,31 +2319,28 @@ mp_real mp_enorm(int n, mp_real *x)
 
 /************************lmmisc.c*************************/
 
-static 
-mp_real mp_dmax1(mp_real a, mp_real b) 
+static mp_real mp_dmax1(mp_real a, mp_real b)
 {
   if (a >= b)
-    return(a);
+    return (a);
   else
-    return(b);
+    return (b);
 }
 
-static 
-mp_real mp_dmin1(mp_real a, mp_real b)
+static mp_real mp_dmin1(mp_real a, mp_real b)
 {
   if (a <= b)
-    return(a);
+    return (a);
   else
-    return(b);
+    return (b);
 }
 
-static 
-int mp_min0(int a, int b)
+static int mp_min0(int a, int b)
 {
   if (a <= b)
-    return(a);
+    return (a);
   else
-    return(b);
+    return (b);
 }
 
 /************************covar.c*************************/
@@ -2198,8 +2412,7 @@ c
 c     **********
 */
 
-static 
-int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa)
+static int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa)
 {
   int i, ii, j, jj, k, l;
   int kk, kj, ji, j0, k0, jj0;
@@ -2219,47 +2432,57 @@ int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa)
   }
 #endif
 
-  tolr = tol*mp_fabs(r[0]);
+  tolr = tol * mp_fabs(r[0]);
   l = -1;
-  for (k=0; k<n; k++) {
-    kk = k*ldr + k;
-    if (mp_fabs(r[kk]) <= tolr) break;
+  for (k = 0; k < n; k++)
+  {
+    kk = k * ldr + k;
+    if (mp_fabs(r[kk]) <= tolr)
+      break;
 
-    r[kk] = one/r[kk];
-    for (j=0; j<k; j++) {
-      kj = k*ldr + j;
+    r[kk] = one / r[kk];
+    for (j = 0; j < k; j++)
+    {
+      kj = k * ldr + j;
       temp = r[kk] * r[kj];
       r[kj] = zero;
 
-      k0 = k*ldr; j0 = j*ldr;
-      for (i=0; i<=j; i++) {
-	r[k0+i] += (-temp*r[j0+i]);
+      k0 = k * ldr;
+      j0 = j * ldr;
+      for (i = 0; i <= j; i++)
+      {
+        r[k0 + i] += (-temp * r[j0 + i]);
       }
     }
     l = k;
   }
 
-  /* 
+  /*
    * Form the full upper triangle of the inverse of (r transpose)*r
    * in the full upper triangle of r
    */
 
-  if (l >= 0) {
-    for (k=0; k <= l; k++) {
-      k0 = k*ldr; 
+  if (l >= 0)
+  {
+    for (k = 0; k <= l; k++)
+    {
+      k0 = k * ldr;
 
-      for (j=0; j<k; j++) {
-	temp = r[k*ldr+j];
+      for (j = 0; j < k; j++)
+      {
+        temp = r[k * ldr + j];
 
-	j0 = j*ldr;
-	for (i=0; i<=j; i++) {
-	  r[j0+i] += temp*r[k0+i];
-	}
+        j0 = j * ldr;
+        for (i = 0; i <= j; i++)
+        {
+          r[j0 + i] += temp * r[k0 + i];
+        }
       }
-      
-      temp = r[k0+k];
-      for (i=0; i<=k; i++) {
-	r[k0+i] *= temp;
+
+      temp = r[k0 + k];
+      for (i = 0; i <= k; i++)
+      {
+        r[k0 + i] *= temp;
       }
     }
   }
@@ -2268,31 +2491,38 @@ int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa)
    * For the full lower triangle of the covariance matrix
    * in the strict lower triangle or and in wa
    */
-  for (j=0; j<n; j++) {
+  for (j = 0; j < n; j++)
+  {
     jj = ipvt[j];
     sing = (j > l);
-    j0 = j*ldr;
-    jj0 = jj*ldr;
-    for (i=0; i<=j; i++) {
-      ji = j0+i;
+    j0 = j * ldr;
+    jj0 = jj * ldr;
+    for (i = 0; i <= j; i++)
+    {
+      ji = j0 + i;
 
-      if (sing) r[ji] = zero;
+      if (sing)
+        r[ji] = zero;
       ii = ipvt[i];
-      if (ii > jj) r[jj0+ii] = r[ji];
-      if (ii < jj) r[ii*ldr+jj] = r[ji];
+      if (ii > jj)
+        r[jj0 + ii] = r[ji];
+      if (ii < jj)
+        r[ii * ldr + jj] = r[ji];
     }
-    wa[jj] = r[j0+j];
+    wa[jj] = r[j0 + j];
   }
 
   /*
    * Symmetrize the covariance matrix in r
    */
-  for (j=0; j<n; j++) {
-    j0 = j*ldr;
-    for (i=0; i<j; i++) {
-      r[j0+i] = r[i*ldr+j];
+  for (j = 0; j < n; j++)
+  {
+    j0 = j * ldr;
+    for (i = 0; i < j; i++)
+    {
+      r[j0 + i] = r[i * ldr + j];
     }
-    r[j0+j] = wa[j];
+    r[j0 + j] = wa[j];
   }
 
 #if 0
@@ -2305,4 +2535,192 @@ int mp_covar(int n, mp_real *r, int ldr, int *ipvt, mp_real tol, mp_real *wa)
 #endif
 
   return 0;
+}
+
+/************************xerror_scipy.c*************************/
+/*
+ * Compute scipy-style parameter errors using full Hessian inverse.
+ *
+ * This matches scipy.optimize.curve_fit error computation, which uses
+ * the full Hessian matrix for ALL parameters (including those at bounds).
+ * MPFIT's standard xerror uses a reduced Hessian (excluding pegged parameters).
+ *
+ * Algorithm:
+ *   1. Call user function to get Jacobian J for all npar parameters
+ *   2. Compute Hessian H = J^T * J (weighted by errors, via user func)
+ *   3. Invert H using Gauss-Jordan elimination with partial pivoting
+ *   4. xerror_scipy[i] = sqrt(H^-1[i,i]) * sqrt(chi2/dof)
+ *
+ * Parameters:
+ *   funct       - user function that computes residuals and derivatives
+ *   m           - number of data points (residuals)
+ *   npar        - number of parameters
+ *   xall        - final parameter values (npar)
+ *   fvec        - work array for residuals (m)
+ *   bestnorm    - final chi-squared value
+ *   priv        - private data passed to user function
+ *   xerror_scipy - output: scipy-style errors (npar), caller allocates
+ */
+static void mp_xerror_scipy(mp_func funct, int m, int npar, mp_real *xall,
+                            mp_real *fvec, mp_real bestnorm, void *priv,
+                            mp_real *xerror_scipy)
+{
+  int i, j, k, col, row, pivot;
+  mp_real *fjac_full = NULL;
+  mp_real *hess = NULL;
+  mp_real *aug = NULL;
+  mp_real **dvec = NULL;
+  mp_real sum, max_val, pivot_val, factor, tmp, var;
+  mp_real scale_factor;
+  int dof;
+  static mp_real zero = 0.0;
+  static mp_real one = 1.0;
+
+  /* Initialize output to zero */
+  for (i = 0; i < npar; i++)
+  {
+    xerror_scipy[i] = zero;
+  }
+
+  /* Compute scale factor: sqrt(chi2/dof) */
+  dof = m - npar;
+  if (dof <= 0)
+  {
+    scale_factor = one;
+  }
+  else
+  {
+    scale_factor = mp_sqrt(bestnorm / dof);
+  }
+
+  /* Allocate workspace */
+  fjac_full = (mp_real *)malloc(m * npar * sizeof(mp_real));
+  hess = (mp_real *)malloc(npar * npar * sizeof(mp_real));
+  aug = (mp_real *)malloc(npar * npar * sizeof(mp_real));
+  dvec = (mp_real **)malloc(npar * sizeof(mp_real *));
+
+  if (!fjac_full || !hess || !aug || !dvec)
+  {
+    goto cleanup_scipy;
+  }
+
+  /* Initialize Jacobian to zero */
+  for (i = 0; i < m * npar; i++)
+  {
+    fjac_full[i] = zero;
+  }
+
+  /* Set up derivative pointers for ALL parameters */
+  for (j = 0; j < npar; j++)
+  {
+    dvec[j] = fjac_full + j * m;
+  }
+
+  /* Call user function to get analytical derivatives for all parameters */
+  /* The user function should fill dvec[j] with partial derivatives w.r.t. param j */
+  mp_call(funct, m, npar, xall, fvec, dvec, priv);
+
+  /* Compute Hessian H = J^T * J
+   * Note: The Jacobian from the user function is already weighted by 1/sigma
+   * (since fvec = (y - model) / sigma), so the Jacobian is d(fvec)/dp */
+  for (i = 0; i < npar; i++)
+  {
+    for (j = 0; j < npar; j++)
+    {
+      sum = zero;
+      for (k = 0; k < m; k++)
+      {
+        sum += fjac_full[i * m + k] * fjac_full[j * m + k];
+      }
+      hess[i * npar + j] = sum;
+    }
+  }
+
+  /* Copy Hessian to aug (augmented matrix for inversion) */
+  for (i = 0; i < npar * npar; i++)
+  {
+    aug[i] = hess[i];
+  }
+
+  /* Initialize hess as identity (will become H^-1) */
+  for (i = 0; i < npar; i++)
+  {
+    for (j = 0; j < npar; j++)
+    {
+      hess[i * npar + j] = (i == j) ? one : zero;
+    }
+  }
+
+  /* Gauss-Jordan elimination with partial pivoting to compute H^-1 */
+  for (col = 0; col < npar; col++)
+  {
+    /* Find pivot (row with maximum absolute value in column) */
+    pivot = col;
+    max_val = mp_fabs(aug[col * npar + col]);
+    for (row = col + 1; row < npar; row++)
+    {
+      if (mp_fabs(aug[row * npar + col]) > max_val)
+      {
+        max_val = mp_fabs(aug[row * npar + col]);
+        pivot = row;
+      }
+    }
+
+    /* Swap rows if needed */
+    if (pivot != col)
+    {
+      for (k = 0; k < npar; k++)
+      {
+        tmp = aug[col * npar + k];
+        aug[col * npar + k] = aug[pivot * npar + k];
+        aug[pivot * npar + k] = tmp;
+
+        tmp = hess[col * npar + k];
+        hess[col * npar + k] = hess[pivot * npar + k];
+        hess[pivot * npar + k] = tmp;
+      }
+    }
+
+    /* Scale pivot row */
+    pivot_val = aug[col * npar + col];
+    if (mp_fabs(pivot_val) > MP_MACHEP0 * 100)
+    {
+      for (k = 0; k < npar; k++)
+      {
+        aug[col * npar + k] /= pivot_val;
+        hess[col * npar + k] /= pivot_val;
+      }
+
+      /* Eliminate column in other rows */
+      for (row = 0; row < npar; row++)
+      {
+        if (row != col)
+        {
+          factor = aug[row * npar + col];
+          for (k = 0; k < npar; k++)
+          {
+            aug[row * npar + k] -= factor * aug[col * npar + k];
+            hess[row * npar + k] -= factor * hess[col * npar + k];
+          }
+        }
+      }
+    }
+  }
+
+  /* Extract errors from diagonal of hess (now H^-1), scaled */
+  for (i = 0; i < npar; i++)
+  {
+    var = hess[i * npar + i];
+    xerror_scipy[i] = (var > zero) ? mp_sqrt(var) * scale_factor : zero;
+  }
+
+cleanup_scipy:
+  if (fjac_full)
+    free(fjac_full);
+  if (hess)
+    free(hess);
+  if (aug)
+    free(aug);
+  if (dvec)
+    free(dvec);
 }

@@ -107,10 +107,11 @@ typedef double mp_real;
     int npegged; /* Number of pegged parameters */
     int nfunc;   /* Number of residuals (= num. of data points) */
 
-    mp_real *resid;   /* Final residuals nfunc-vector, or 0 if not desired */
-    mp_real *xerror;  /* Final parameter uncertainties (1-sigma) npar-vector */
-    mp_real *covar;   /* Final parameter covariance matrix npar x npar array */
-    char version[20]; /* MPFIT version string */
+    mp_real *resid;        /* Final residuals nfunc-vector, or 0 if not desired */
+    mp_real *xerror;       /* Final parameter uncertainties (1-sigma) npar-vector */
+    mp_real *covar;        /* Final parameter covariance matrix npar x npar array */
+    mp_real *xerror_scipy; /* Scipy-style curve_fit errors from full Hessian inverse npar-vector */
+    char version[20];      /* MPFIT version string */
   };
 
   /* Convenience typedefs */

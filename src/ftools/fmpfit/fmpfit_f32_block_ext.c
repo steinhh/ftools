@@ -17,9 +17,7 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
-/* Include scipy-style error computation (float32 version) */
-#define XERROR_SCIPY_FLOAT 1
-#include "xerror_scipy.c"
+/* xerror_scipy is now computed inside mpfit.c, no need to include xerror_scipy.c */
 
 /*
  * Core MPFIT function for a single spectrum (float32 version)
@@ -33,7 +31,8 @@ static void fmpfit_f32_single(
     float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
     int *nfree, int *npegged,
-    float *resid, float *xerror, float *covar)
+    float *resid, float *xerror, float *covar,
+    float *xerror_scipy)
 {
   int i;
   mp_par *pars = NULL;
@@ -100,6 +99,7 @@ static void fmpfit_f32_single(
   result.resid = resid;
   result.xerror = xerror;
   result.covar = covar;
+  result.xerror_scipy = xerror_scipy;
 
   /* Setup private data for user function */
   private_data.x = x;
@@ -287,6 +287,9 @@ static PyObject *py_fmpfit_f32_block(PyObject *self, PyObject *args)
     float *xerror_s = out_xerror + s * npar;
     float *covar_s = out_covar + s * npar * npar;
 
+    /* Pointers to xerror outputs for this spectrum */
+    float *xerror_scipy_s = out_xerror_scipy + s * npar;
+
     /* Fit this spectrum */
     fmpfit_f32_single(
         x_s, y_s, error_s, p0_s, bounds_s,
@@ -296,7 +299,8 @@ static PyObject *py_fmpfit_f32_block(PyObject *self, PyObject *args)
         &out_bestnorm[s], &out_orignorm[s],
         &out_niter[s], &out_nfev[s], &out_status[s],
         &out_nfree[s], &out_npegged[s],
-        resid_s, xerror_s, covar_s);
+        resid_s, xerror_s, covar_s,
+        xerror_scipy_s);
 
     /* Compute xerror_scaled for this spectrum */
     int dof = mpoints - npar;
@@ -306,11 +310,6 @@ static PyObject *py_fmpfit_f32_block(PyObject *self, PyObject *args)
     {
       xerror_scaled_s[i] = xerror_s[i] * scale_factor;
     }
-
-    /* Compute xerror_scipy for this spectrum (full Hessian inverse) */
-    float *xerror_scipy_s = out_xerror_scipy + s * npar;
-    compute_xerror_scipy_f32(x_s, error_s, best_params_s, mpoints, npar,
-                             scale_factor, xerror_scipy_s, xerror_scaled_s);
 
     /* Set constant values */
     out_npar[s] = npar;

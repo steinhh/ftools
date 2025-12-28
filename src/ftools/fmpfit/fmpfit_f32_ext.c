@@ -16,9 +16,7 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
-/* Include scipy-style error computation (float32 version) */
-#define XERROR_SCIPY_FLOAT 1
-#include "xerror_scipy.c"
+/* xerror_scipy is now computed inside mpfit.c, no need to include xerror_scipy.c */
 
 /*
  * Core MPFIT function - calls MPFIT library (float32 version)
@@ -31,7 +29,8 @@ static void fmpfit_f32_c_wrap(
     int maxiter, int quiet,
     float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
-    float *resid, float *xerror, float *covar)
+    float *resid, float *xerror, float *covar,
+    float *xerror_scipy)
 {
   int i;
   mp_par *pars = NULL;
@@ -94,6 +93,7 @@ static void fmpfit_f32_c_wrap(
   result.resid = resid;
   result.xerror = xerror;
   result.covar = covar;
+  result.xerror_scipy = xerror_scipy;
 
   /* Setup private data for Gaussian model */
   private_data.x = x;
@@ -220,7 +220,7 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
                           maxiter, quiet,
                           best_params, &bestnorm, &orignorm,
                           &niter, &nfev, &status,
-                          resid, xerror, covar);
+                          resid, xerror, covar, xerror_scipy);
 
     /* Compute xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
     int dof = mpoints - npar;
@@ -229,10 +229,7 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     {
       xerror_scaled[i] = xerror[i] * scale_factor;
     }
-
-    /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style) */
-    compute_xerror_scipy_f32(x, error, best_params, mpoints, npar,
-                             scale_factor, xerror_scipy, xerror_scaled);
+    /* xerror_scipy is now computed inside mpfit() */
     Py_END_ALLOW_THREADS
   }
 

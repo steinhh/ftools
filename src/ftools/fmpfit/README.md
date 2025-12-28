@@ -117,7 +117,9 @@ No runtime verbosity option exposed; extension runs silently by default.
 - `nfev`: Number of function evaluations
 - `status`: Status code (positive = success)
 - `resid`: Final residuals
-- `xerror`: Parameter uncertainties (1-sigma)
+- `xerror`: Parameter uncertainties (1-sigma, from reduced covariance)
+- `xerror_scaled`: Scaled uncertainties (`xerror × sqrt(chi2/dof)`)
+- `xerror_scipy`: Scipy-compatible uncertainties (full Hessian inverse, matches `curve_fit` output)
 - `covar`: Covariance matrix
 - `c_time`: Time spent in C extension
 
@@ -133,7 +135,7 @@ Also: `fmpfit_f64_block_pywrap`, `fmpfit_f32_block_pywrap`
 
 **Parameters:** 2D arrays with shape `(n_spectra, mpoints)` for data and `(n_spectra, npar)` for parameters.
 
-**Returns:** Dict with arrays: `best_params`, `bestnorm`, `status`, `niter`, `nfev`, `xerror`, `covar`.
+**Returns:** Dict with arrays: `best_params`, `bestnorm`, `status`, `niter`, `nfev`, `xerror`, `xerror_scaled`, `xerror_scipy`, `covar`.
 
 ## Multithreading Performance
 
