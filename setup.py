@@ -29,7 +29,7 @@ except Exception:
 
 # Check for FORCE_SCALAR environment variable to disable Accelerate framework
 force_scalar = os.environ.get("FORCE_SCALAR", "0") == "1"
-fgaussian_extra_compile_args = ["-O3", "-ffast-math"]
+fgaussian_extra_compile_args = ["-O3"]
 if force_scalar:
     fgaussian_extra_compile_args.append("-DFORCE_SCALAR")
 
@@ -145,7 +145,7 @@ setup(
     name="ftools",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    version="5.2.4",
+    version="5.2.5",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
