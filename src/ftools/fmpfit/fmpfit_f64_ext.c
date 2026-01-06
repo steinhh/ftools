@@ -211,17 +211,17 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
      threads may run concurrently. The MPFIT library and callbacks are pure
      C and do not call back into Python, so this is safe. */
   Py_BEGIN_ALLOW_THREADS
-  fmpfit_f64_c_wrap(x, y, error, p0, bounds,
-                    mpoints, npar, deviate_type,
-                    xtol, ftol, gtol, maxiter, quiet,
-                    best_params, &bestnorm, &orignorm,
-                    &niter, &nfev, &status,
-                    resid, xerror, covar,
-                    xerror_scipy); /* mpfit computes scipy-style errors internally */
+      fmpfit_f64_c_wrap(x, y, error, p0, bounds,
+                        mpoints, npar, deviate_type,
+                        xtol, ftol, gtol, maxiter, quiet,
+                        best_params, &bestnorm, &orignorm,
+                        &niter, &nfev, &status,
+                        resid, xerror, covar,
+                        xerror_scipy); /* mpfit computes scipy-style errors internally */
   Py_END_ALLOW_THREADS
 
-  /* Create output arrays */
-  npy_intp dims_params[1] = {npar};
+      /* Create output arrays */
+      npy_intp dims_params[1] = {npar};
   npy_intp dims_resid[1] = {mpoints};
   npy_intp dims_covar[2] = {npar, npar};
 
@@ -281,6 +281,7 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
     Py_DECREF(resid_array);
     Py_DECREF(xerror_array);
     Py_DECREF(covar_array);
+    Py_DECREF(xerror_scipy_array);
     return NULL;
   }
 
