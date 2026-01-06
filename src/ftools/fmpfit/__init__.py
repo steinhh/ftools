@@ -207,8 +207,8 @@ def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     )
 
 
-def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOSONAR
-                      ftol=1e-10, gtol=1e-10, maxiter=200, quiet=True):
+def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-6, #NOSONAR
+                      ftol=1e-6, gtol=1e-6, maxiter=2000, quiet=True):
     """MPFIT wrapper function for float32 (single precision) fitting.
     Uses analytical derivatives (Jacobian) for the Gaussian model internally,
     which provides faster and more accurate convergence than finite differences.
