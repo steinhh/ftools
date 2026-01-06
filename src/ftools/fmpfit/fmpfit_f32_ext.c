@@ -22,6 +22,8 @@
 
 /*
  * Core MPFIT function - calls MPFIT library (float32 version)
+ *
+ * xerror_scipy_mp: if non-NULL, will be filled with mpfit's internal mp_xerror_scipy result
  */
 static void fmpfit_f32_c_wrap(
     const float *x, const float *y, const float *error,
@@ -31,100 +33,101 @@ static void fmpfit_f32_c_wrap(
     int maxiter, int quiet,
     float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
-    float *resid, float *xerror, float *covar)
+    float *resid, float *xerror, float *covar,
+    float *xerror_scipy_mp)
 {
-  int i;
-  mp_par *pars = NULL;
-  mp_config config;
-  mp_result result;
-  struct gaussian_private_data_f32 private_data;
+    int i;
+    mp_par *pars = NULL;
+    mp_config config;
+    mp_result result;
+    struct gaussian_private_data_f32 private_data;
 
-  /* Initialize parameter array from p0 */
-  for (i = 0; i < npar; i++)
-  {
-    best_params[i] = p0[i];
-  }
-
-  /* Setup parameter constraints from bounds array */
-  /* bounds is shape (npar, 2) with [lower, upper] for each parameter */
-  pars = (mp_par *)calloc(npar, sizeof(mp_par));
-  if (pars)
-  {
+    /* Initialize parameter array from p0 */
     for (i = 0; i < npar; i++)
     {
-      float lower = bounds[i * 2];
-      float upper = bounds[i * 2 + 1];
-
-      /* Check if lower bound is finite */
-      if (isfinite(lower))
-      {
-        pars[i].limited[0] = 1;
-        pars[i].limits[0] = lower;
-      }
-      else
-      {
-        pars[i].limited[0] = 0;
-      }
-
-      /* Check if upper bound is finite */
-      if (isfinite(upper))
-      {
-        pars[i].limited[1] = 1;
-        pars[i].limits[1] = upper;
-      }
-      else
-      {
-        pars[i].limited[1] = 0;
-      }
-
-      pars[i].fixed = 0;
-      pars[i].side = 3; /* Use analytical derivatives (side=3) */
+        best_params[i] = p0[i];
     }
-  }
 
-  /* Configure MPFIT */
-  memset(&config, 0, sizeof(config));
-  config.ftol = ftol;
-  config.xtol = xtol;
-  config.gtol = gtol;
-  config.maxiter = maxiter;
+    /* Setup parameter constraints from bounds array */
+    /* bounds is shape (npar, 2) with [lower, upper] for each parameter */
+    pars = (mp_par *)calloc(npar, sizeof(mp_par));
+    if (pars)
+    {
+        for (i = 0; i < npar; i++)
+        {
+            float lower = bounds[i * 2];
+            float upper = bounds[i * 2 + 1];
 
-  /* Setup result structure to receive outputs */
-  memset(&result, 0, sizeof(result));
-  result.resid = resid;
-  result.xerror = xerror;
-  result.covar = covar;
-  /* xerror_scipy will be computed externally after mpfit returns */
+            /* Check if lower bound is finite */
+            if (isfinite(lower))
+            {
+                pars[i].limited[0] = 1;
+                pars[i].limits[0] = lower;
+            }
+            else
+            {
+                pars[i].limited[0] = 0;
+            }
 
-  /* Setup private data for Gaussian model */
-  private_data.x = x;
-  private_data.y = y;
-  private_data.error = error;
+            /* Check if upper bound is finite */
+            if (isfinite(upper))
+            {
+                pars[i].limited[1] = 1;
+                pars[i].limits[1] = upper;
+            }
+            else
+            {
+                pars[i].limited[1] = 0;
+            }
 
-  /* Call MPFIT */
-  if (deviate_type == 0)
-  {
-    /* Gaussian model */
-    *status = mpfit(myfunct_gaussian_deviates_with_derivatives_f32,
-                    mpoints, npar, best_params, pars, &config,
-                    (void *)&private_data, &result);
-  }
-  else
-  {
-    *status = -1; /* Unknown deviate type */
-  }
+            pars[i].fixed = 0;
+            pars[i].side = 3; /* Use analytical derivatives (side=3) */
+        }
+    }
 
-  /* Extract results */
-  *bestnorm = result.bestnorm;
-  *orignorm = result.orignorm;
-  *niter = result.niter;
-  *nfev = result.nfev;
+    /* Configure MPFIT */
+    memset(&config, 0, sizeof(config));
+    config.ftol = ftol;
+    config.xtol = xtol;
+    config.gtol = gtol;
+    config.maxiter = maxiter;
 
-  /* Free parameter constraints */
-  if (pars)
-  {
-    free(pars);
-  }
+    /* Setup result structure to receive outputs */
+    memset(&result, 0, sizeof(result));
+    result.resid = resid;
+    result.xerror = xerror;
+    result.covar = covar;
+    result.xerror_scipy = xerror_scipy_mp; /* If non-NULL, mpfit will compute internal mp_xerror_scipy */
+
+    /* Setup private data for Gaussian model */
+    private_data.x = x;
+    private_data.y = y;
+    private_data.error = error;
+
+    /* Call MPFIT */
+    if (deviate_type == 0)
+    {
+        /* Gaussian model */
+        *status = mpfit(myfunct_gaussian_deviates_with_derivatives_f32,
+                        mpoints, npar, best_params, pars, &config,
+                        (void *)&private_data, &result);
+    }
+    else
+    {
+        *status = -1; /* Unknown deviate type */
+    }
+
+    /* Extract results */
+    *bestnorm = result.bestnorm;
+    *orignorm = result.orignorm;
+    *niter = result.niter;
+    *nfev = result.nfev;
+
+    /* Free parameter constraints */
+    if (pars)
+    {
+        free(pars);
+    }
 }
 
 /*
@@ -134,204 +137,216 @@ static void fmpfit_f32_c_wrap(
  */
 static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
 {
-  PyObject *x_obj, *y_obj, *error_obj, *p0_obj, *bounds_obj;
-  int deviate_type, maxiter, quiet;
-  double xtol_d, ftol_d, gtol_d;
+    PyObject *x_obj, *y_obj, *error_obj, *p0_obj, *bounds_obj;
+    int deviate_type, maxiter, quiet;
+    double xtol_d, ftol_d, gtol_d;
 
-  (void)self;
+    (void)self;
 
-  /* Parse arguments - no mpoints/npar needed */
-  if (!PyArg_ParseTuple(args, "OOOOOidddii",
-                        &x_obj, &y_obj, &error_obj, &p0_obj, &bounds_obj,
-                        &deviate_type,
-                        &xtol_d, &ftol_d, &gtol_d,
-                        &maxiter, &quiet))
-  {
-    return NULL;
-  }
-
-  /* Convert tolerance values to float */
-  float xtol = (float)xtol_d;
-  float ftol = (float)ftol_d;
-  float gtol = (float)gtol_d;
-
-  /* Convert to contiguous arrays */
-  PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF(x_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *y_contig = (PyArrayObject *)PyArray_FROM_OTF(y_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *error_contig = (PyArrayObject *)PyArray_FROM_OTF(error_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *p0_contig = (PyArrayObject *)PyArray_FROM_OTF(p0_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
-  PyArrayObject *bounds_contig = (PyArrayObject *)PyArray_FROM_OTF(bounds_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
-
-  if (!x_contig || !y_contig || !error_contig || !p0_contig || !bounds_contig)
-  {
-    Py_XDECREF(x_contig);
-    Py_XDECREF(y_contig);
-    Py_XDECREF(error_contig);
-    Py_XDECREF(p0_contig);
-    Py_XDECREF(bounds_contig);
-    return NULL;
-  }
-
-  /* Infer dimensions from array shapes */
-  int mpoints = (int)PyArray_DIM(x_contig, 0);
-  int npar = (int)PyArray_DIM(p0_contig, 0);
-
-  /* Get data pointers */
-  float *x = (float *)PyArray_DATA(x_contig);
-  float *y = (float *)PyArray_DATA(y_contig);
-  float *error = (float *)PyArray_DATA(error_contig);
-  float *p0 = (float *)PyArray_DATA(p0_contig);
-  float *bounds = (float *)PyArray_DATA(bounds_contig);
-
-  /* Allocate output arrays */
-  float *best_params = (float *)malloc(npar * sizeof(float));
-  float *resid = (float *)malloc(mpoints * sizeof(float));
-  float *xerror = (float *)malloc(npar * sizeof(float));
-  float *xerror_scipy = (float *)malloc(npar * sizeof(float));
-  float *covar = (float *)malloc(npar * npar * sizeof(float));
-  float bestnorm, orignorm;
-  int niter, nfev, status;
-
-  if (!best_params || !resid || !xerror || !xerror_scipy || !covar)
-  {
-    free(best_params);
-    free(resid);
-    free(xerror);
-    free(xerror_scipy);
-    free(covar);
-    Py_DECREF(x_contig);
-    Py_DECREF(y_contig);
-    Py_DECREF(error_contig);
-    Py_DECREF(p0_contig);
-    Py_DECREF(bounds_contig);
-    return PyErr_NoMemory();
-  }
-
-  /* Release GIL while running the compute-heavy C routine so other Python
-     threads may run concurrently. MPFIT and the user callbacks are pure C
-     functions (they don't call into Python), so releasing the GIL here is
-     safe. */
-  {
-    Py_BEGIN_ALLOW_THREADS
-        fmpfit_f32_c_wrap(x, y, error, p0, bounds,
-                          mpoints, npar, deviate_type,
-                          xtol, ftol, gtol,
-                          maxiter, quiet,
-                          best_params, &bestnorm, &orignorm,
-                          &niter, &nfev, &status,
-                          resid, xerror, covar);
-
-    /* Compute xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
-    int dof = mpoints - npar;
-    float scale_factor = (dof > 0) ? sqrtf(bestnorm / dof) : 1.0f;
-    float *xerror_scaled = (float *)malloc(npar * sizeof(float));
-    if (xerror_scaled)
+    /* Parse arguments - no mpoints/npar needed */
+    if (!PyArg_ParseTuple(args, "OOOOOidddii",
+                          &x_obj, &y_obj, &error_obj, &p0_obj, &bounds_obj,
+                          &deviate_type,
+                          &xtol_d, &ftol_d, &gtol_d,
+                          &maxiter, &quiet))
     {
-      for (int i = 0; i < npar; i++)
-      {
-        xerror_scaled[i] = xerror[i] * scale_factor;
-      }
-
-      /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style) */
-      compute_xerror_scipy_f32(x, error, best_params, mpoints, npar,
-                               scale_factor, xerror_scipy, xerror_scaled);
-      free(xerror_scaled);
+        return NULL;
     }
-    Py_END_ALLOW_THREADS
-  }
 
-  /* Create output arrays */
-  npy_intp dims_params[1] = {npar};
-  npy_intp dims_resid[1] = {mpoints};
-  npy_intp dims_covar[2] = {npar, npar};
+    /* Convert tolerance values to float */
+    float xtol = (float)xtol_d;
+    float ftol = (float)ftol_d;
+    float gtol = (float)gtol_d;
 
-  PyArrayObject *best_params_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
-  PyArrayObject *resid_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_resid, NPY_FLOAT32);
-  PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
-  PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_FLOAT32);
-  PyArrayObject *xerror_scipy_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+    /* Convert to contiguous arrays */
+    PyArrayObject *x_contig = (PyArrayObject *)PyArray_FROM_OTF(x_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+    PyArrayObject *y_contig = (PyArrayObject *)PyArray_FROM_OTF(y_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+    PyArrayObject *error_contig = (PyArrayObject *)PyArray_FROM_OTF(error_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+    PyArrayObject *p0_contig = (PyArrayObject *)PyArray_FROM_OTF(p0_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
+    PyArrayObject *bounds_contig = (PyArrayObject *)PyArray_FROM_OTF(bounds_obj, NPY_FLOAT32, NPY_ARRAY_IN_ARRAY);
 
-  if (!best_params_array || !resid_array || !xerror_array || !covar_array ||
-      !xerror_scipy_array)
-  {
-    Py_XDECREF(best_params_array);
-    Py_XDECREF(resid_array);
-    Py_XDECREF(xerror_array);
-    Py_XDECREF(covar_array);
-    Py_XDECREF(xerror_scipy_array);
+    if (!x_contig || !y_contig || !error_contig || !p0_contig || !bounds_contig)
+    {
+        Py_XDECREF(x_contig);
+        Py_XDECREF(y_contig);
+        Py_XDECREF(error_contig);
+        Py_XDECREF(p0_contig);
+        Py_XDECREF(bounds_contig);
+        return NULL;
+    }
+
+    /* Infer dimensions from array shapes */
+    int mpoints = (int)PyArray_DIM(x_contig, 0);
+    int npar = (int)PyArray_DIM(p0_contig, 0);
+
+    /* Get data pointers */
+    float *x = (float *)PyArray_DATA(x_contig);
+    float *y = (float *)PyArray_DATA(y_contig);
+    float *error = (float *)PyArray_DATA(error_contig);
+    float *p0 = (float *)PyArray_DATA(p0_contig);
+    float *bounds = (float *)PyArray_DATA(bounds_contig);
+
+    /* Allocate output arrays */
+    float *best_params = (float *)malloc(npar * sizeof(float));
+    float *resid = (float *)malloc(mpoints * sizeof(float));
+    float *xerror = (float *)malloc(npar * sizeof(float));
+    float *xerror_scipy = (float *)malloc(npar * sizeof(float));    /* External computation */
+    float *xerror_scipy_mp = (float *)malloc(npar * sizeof(float)); /* mpfit internal computation */
+    float *covar = (float *)malloc(npar * npar * sizeof(float));
+    float bestnorm, orignorm;
+    int niter, nfev, status;
+
+    if (!best_params || !resid || !xerror || !xerror_scipy || !xerror_scipy_mp || !covar)
+    {
+        free(best_params);
+        free(resid);
+        free(xerror);
+        free(xerror_scipy);
+        free(xerror_scipy_mp);
+        free(covar);
+        Py_DECREF(x_contig);
+        Py_DECREF(y_contig);
+        Py_DECREF(error_contig);
+        Py_DECREF(p0_contig);
+        Py_DECREF(bounds_contig);
+        return PyErr_NoMemory();
+    }
+
+    /* Release GIL while running the compute-heavy C routine so other Python
+       threads may run concurrently. MPFIT and the user callbacks are pure C
+       functions (they don't call into Python), so releasing the GIL here is
+       safe. */
+    {
+        Py_BEGIN_ALLOW_THREADS
+            fmpfit_f32_c_wrap(x, y, error, p0, bounds,
+                              mpoints, npar, deviate_type,
+                              xtol, ftol, gtol,
+                              maxiter, quiet,
+                              best_params, &bestnorm, &orignorm,
+                              &niter, &nfev, &status,
+                              resid, xerror, covar,
+                              xerror_scipy_mp); /* mpfit internal xerror_scipy */
+
+        /* Compute xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
+        int dof = mpoints - npar;
+        float scale_factor = (dof > 0) ? sqrtf(bestnorm / dof) : 1.0f;
+        float *xerror_scaled = (float *)malloc(npar * sizeof(float));
+        if (xerror_scaled)
+        {
+            for (int i = 0; i < npar; i++)
+            {
+                xerror_scaled[i] = xerror[i] * scale_factor;
+            }
+
+            /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style, external) */
+            compute_xerror_scipy_f32(x, error, best_params, mpoints, npar,
+                                     scale_factor, xerror_scipy, xerror_scaled);
+            free(xerror_scaled);
+        }
+        Py_END_ALLOW_THREADS
+    }
+
+    /* Create output arrays */
+    npy_intp dims_params[1] = {npar};
+    npy_intp dims_resid[1] = {mpoints};
+    npy_intp dims_covar[2] = {npar, npar};
+
+    PyArrayObject *best_params_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+    PyArrayObject *resid_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_resid, NPY_FLOAT32);
+    PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+    PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_FLOAT32);
+    PyArrayObject *xerror_scipy_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+    PyArrayObject *xerror_scipy_mp_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
+
+    if (!best_params_array || !resid_array || !xerror_array || !covar_array ||
+        !xerror_scipy_array || !xerror_scipy_mp_array)
+    {
+        Py_XDECREF(best_params_array);
+        Py_XDECREF(resid_array);
+        Py_XDECREF(xerror_array);
+        Py_XDECREF(covar_array);
+        Py_XDECREF(xerror_scipy_array);
+        Py_XDECREF(xerror_scipy_mp_array);
+        free(best_params);
+        free(resid);
+        free(xerror);
+        free(covar);
+        free(xerror_scipy);
+        free(xerror_scipy_mp);
+        Py_DECREF(x_contig);
+        Py_DECREF(y_contig);
+        Py_DECREF(error_contig);
+        Py_DECREF(p0_contig);
+        Py_DECREF(bounds_contig);
+        return NULL;
+    }
+
+    /* Copy data to output arrays */
+    memcpy(PyArray_DATA(best_params_array), best_params, npar * sizeof(float));
+    memcpy(PyArray_DATA(resid_array), resid, mpoints * sizeof(float));
+    memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(float));
+    memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(float));
+    memcpy(PyArray_DATA(xerror_scipy_array), xerror_scipy, npar * sizeof(float));
+    memcpy(PyArray_DATA(xerror_scipy_mp_array), xerror_scipy_mp, npar * sizeof(float));
+
+    /* Free temporary buffers */
     free(best_params);
     free(resid);
     free(xerror);
     free(covar);
     free(xerror_scipy);
+    free(xerror_scipy_mp);
+
+    /* Release input arrays */
     Py_DECREF(x_contig);
     Py_DECREF(y_contig);
     Py_DECREF(error_contig);
     Py_DECREF(p0_contig);
     Py_DECREF(bounds_contig);
-    return NULL;
-  }
 
-  /* Copy data to output arrays */
-  memcpy(PyArray_DATA(best_params_array), best_params, npar * sizeof(float));
-  memcpy(PyArray_DATA(resid_array), resid, mpoints * sizeof(float));
-  memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(float));
-  memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(float));
-  memcpy(PyArray_DATA(xerror_scipy_array), xerror_scipy, npar * sizeof(float));
+    /* Create result dictionary */
+    PyObject *result = PyDict_New();
+    if (!result)
+    {
+        Py_DECREF(best_params_array);
+        Py_DECREF(resid_array);
+        Py_DECREF(xerror_array);
+        Py_DECREF(covar_array);
+        Py_DECREF(xerror_scipy_array);
+        Py_DECREF(xerror_scipy_mp_array);
+        return NULL;
+    }
 
-  /* Free temporary buffers */
-  free(best_params);
-  free(resid);
-  free(xerror);
-  free(covar);
-  free(xerror_scipy);
+    /* For now, set dummy values for nfree, npegged */
+    int nfree = npar; /* In real implementation, count non-fixed parameters */
+    int npegged = 0;  /* In real implementation, count parameters at bounds */
 
-  /* Release input arrays */
-  Py_DECREF(x_contig);
-  Py_DECREF(y_contig);
-  Py_DECREF(error_contig);
-  Py_DECREF(p0_contig);
-  Py_DECREF(bounds_contig);
+    /* Populate dictionary */
+    PyDict_SetItemString(result, "best_params", (PyObject *)best_params_array);
+    PyDict_SetItemString(result, "bestnorm", PyFloat_FromDouble((double)bestnorm));
+    PyDict_SetItemString(result, "orignorm", PyFloat_FromDouble((double)orignorm));
+    PyDict_SetItemString(result, "niter", PyLong_FromLong(niter));
+    PyDict_SetItemString(result, "nfev", PyLong_FromLong(nfev));
+    PyDict_SetItemString(result, "status", PyLong_FromLong(status));
+    PyDict_SetItemString(result, "npar", PyLong_FromLong(npar));
+    PyDict_SetItemString(result, "nfree", PyLong_FromLong(nfree));
+    PyDict_SetItemString(result, "npegged", PyLong_FromLong(npegged));
+    PyDict_SetItemString(result, "nfunc", PyLong_FromLong(mpoints));
+    PyDict_SetItemString(result, "resid", (PyObject *)resid_array);
+    PyDict_SetItemString(result, "xerror", (PyObject *)xerror_array);
+    PyDict_SetItemString(result, "covar", (PyObject *)covar_array);
+    PyDict_SetItemString(result, "xerror_scipy", (PyObject *)xerror_scipy_array);
+    PyDict_SetItemString(result, "xerror_scipy_mp", (PyObject *)xerror_scipy_mp_array);
 
-  /* Create result dictionary */
-  PyObject *result = PyDict_New();
-  if (!result)
-  {
+    /* Decrement reference counts (dict holds references) */
     Py_DECREF(best_params_array);
     Py_DECREF(resid_array);
     Py_DECREF(xerror_array);
     Py_DECREF(covar_array);
-    return NULL;
-  }
+    Py_DECREF(xerror_scipy_array);
+    Py_DECREF(xerror_scipy_mp_array);
 
-  /* For now, set dummy values for nfree, npegged */
-  int nfree = npar; /* In real implementation, count non-fixed parameters */
-  int npegged = 0;  /* In real implementation, count parameters at bounds */
-
-  /* Populate dictionary */
-  PyDict_SetItemString(result, "best_params", (PyObject *)best_params_array);
-  PyDict_SetItemString(result, "bestnorm", PyFloat_FromDouble((double)bestnorm));
-  PyDict_SetItemString(result, "orignorm", PyFloat_FromDouble((double)orignorm));
-  PyDict_SetItemString(result, "niter", PyLong_FromLong(niter));
-  PyDict_SetItemString(result, "nfev", PyLong_FromLong(nfev));
-  PyDict_SetItemString(result, "status", PyLong_FromLong(status));
-  PyDict_SetItemString(result, "npar", PyLong_FromLong(npar));
-  PyDict_SetItemString(result, "nfree", PyLong_FromLong(nfree));
-  PyDict_SetItemString(result, "npegged", PyLong_FromLong(npegged));
-  PyDict_SetItemString(result, "nfunc", PyLong_FromLong(mpoints));
-  PyDict_SetItemString(result, "resid", (PyObject *)resid_array);
-  PyDict_SetItemString(result, "xerror", (PyObject *)xerror_array);
-  PyDict_SetItemString(result, "covar", (PyObject *)covar_array);
-  PyDict_SetItemString(result, "xerror_scipy", (PyObject *)xerror_scipy_array);
-
-  /* Decrement reference counts (dict holds references) */
-  Py_DECREF(best_params_array);
-  Py_DECREF(resid_array);
-  Py_DECREF(xerror_array);
-  Py_DECREF(covar_array);
-  Py_DECREF(xerror_scipy_array);
-
-  return result;
+    return result;
 }
 
 /* Method definition */
@@ -354,12 +369,12 @@ static struct PyModuleDef fmpfit_f32_module = {
 /* Module initialization */
 PyMODINIT_FUNC PyInit_fmpfit_f32_ext(void)
 {
-  import_array();
+    import_array();
 
-  if (PyErr_Occurred())
-  {
-    return NULL;
-  }
+    if (PyErr_Occurred())
+    {
+        return NULL;
+    }
 
-  return PyModule_Create(&fmpfit_f32_module);
+    return PyModule_Create(&fmpfit_f32_module);
 }

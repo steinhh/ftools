@@ -46,7 +46,10 @@ class MPFitResult:
     xerror_scipy : ndarray
         Parameter uncertainties computed using full Hessian inverse (scipy-style)
         This is directly comparable to scipy.optimize.curve_fit errors, even when
-        parameters hit their bounds.
+        parameters hit their bounds. Computed using explicit Gaussian derivatives.
+    xerror_scipy_mp : ndarray
+        Parameter uncertainties computed using mpfit's internal mp_xerror_scipy.
+        Uses the user function callback to compute derivatives.
     covar : ndarray
         Covariance matrix (npar x npar)
     c_time : float
@@ -54,7 +57,7 @@ class MPFitResult:
     """
     def __init__(self, best_params, bestnorm, orignorm, niter, nfev, status,     # NOSONAR
                  npar, nfree, npegged, nfunc, resid, xerror,                    # NOSONAR
-                 xerror_scipy, covar, c_time=0.0):                               # NOSONAR
+                 xerror_scipy, xerror_scipy_mp, covar, c_time=0.0):              # NOSONAR
         self.best_params = best_params
         self.bestnorm = bestnorm
         self.orignorm = orignorm
@@ -68,6 +71,7 @@ class MPFitResult:
         self.resid = resid
         self.xerror = xerror
         self.xerror_scipy = xerror_scipy
+        self.xerror_scipy_mp = xerror_scipy_mp
         self.covar = covar
         self.c_time = c_time
     
@@ -186,7 +190,7 @@ def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     t_end = time.perf_counter()
     c_time = t_end - t_start
     
-    # Create result object
+    # Create result object (f64 wrapper)
     return MPFitResult(
         best_params=result_dict['best_params'],
         bestnorm=result_dict['bestnorm'],
@@ -201,6 +205,7 @@ def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
         resid=result_dict['resid'],
         xerror=result_dict['xerror'],
         xerror_scipy=result_dict['xerror_scipy'],
+        xerror_scipy_mp=result_dict.get('xerror_scipy_mp', result_dict['xerror_scipy']),
         covar=result_dict['covar'],
         c_time=c_time
     )
@@ -300,7 +305,7 @@ def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOS
     t_end = time.perf_counter()
     c_time = t_end - t_start
     
-    # Create result object
+    # Create result object (f32 wrapper)
     return MPFitResult(
         best_params=result_dict['best_params'],
         bestnorm=result_dict['bestnorm'],
@@ -315,6 +320,7 @@ def fmpfit_f32_pywrap(deviate_type, parinfo=None, functkw=None, xtol=1e-10, #NOS
         resid=result_dict['resid'],
         xerror=result_dict['xerror'],
         xerror_scipy=result_dict['xerror_scipy'],
+        xerror_scipy_mp=result_dict.get('xerror_scipy_mp', result_dict['xerror_scipy']),
         covar=result_dict['covar'],
         c_time=c_time
     )
