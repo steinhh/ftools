@@ -85,7 +85,7 @@ Expected result: errors match scipy curve_fit within 0.01%.
 
 ### test_xerror_comparison.py
 
-Comprehensive test comparing `xerror_scipy` (external formula) vs `xerror_scipy_mp` (internal callback-based):
+Comprehensive test comparing fmpfit `xerror_scipy` against scipy curve_fit errors:
 
 1. Normal fit (linewidth within bounds)
 2. Linewidth at upper bound
@@ -110,14 +110,17 @@ Improvement: **600,000x** reduction in error difference.
 ## Files Modified
 
 - `cmpfit-1.5/mpfit.c`: Added `mp_invert_3x3_symmetric()`, modified `mp_xerror_scipy()`
+- `fmpfit_f32_ext.c`, `fmpfit_f64_ext.c`, `fmpfit_f32_block_ext.c`, `fmpfit_f64_block_ext.c`: Removed external `xerror_scipy.c` computation, now using mpfit's internal `mp_xerror_scipy`
+- `__init__.py`: Removed deprecated `xerror_scipy_mp` attribute (now unified with `xerror_scipy`)
 
-## Related Changes
+## Cleanup (after fix verification)
 
-- Added `xerror_scipy_mp` output to `fmpfit_f32_ext.c` to expose internal mp_xerror_scipy alongside external xerror_scipy.c computation (for debugging/comparison)
-- Updated `__init__.py` to include `xerror_scipy_mp` in `MPFitResult` class
+- **Removed**: `xerror_scipy.c` - no longer needed since mpfit's internal computation is now correct
+- **Removed**: `xerror_scipy_mp` output - was only used for debugging/comparison during fix development
 
 ## Notes
 
-- The external `xerror_scipy.c` (using explicit Gaussian derivative formulas) was always correct
-- The bug only affected `mp_xerror_scipy()` which uses the user-provided deviate callback
-- Both methods now produce identical results matching scipy curve_fit
+- The external `xerror_scipy.c` (using explicit Gaussian derivative formulas) was always correct and was used temporarily while investigating the bug
+- The bug only affected `mp_xerror_scipy()` which uses the user-provided deviate callback  
+- After the fix, the internal mpfit computation produces identical results to scipy curve_fit
+- The fix is more elegant: a single unified code path using the deviate callback, instead of maintaining separate explicit derivative formulas

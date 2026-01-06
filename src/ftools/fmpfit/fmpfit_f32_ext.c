@@ -16,14 +16,10 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
-/* Include explicit scipy-style error computation */
-#define XERROR_SCIPY_FLOAT 1
-#include "xerror_scipy.c"
-
 /*
  * Core MPFIT function - calls MPFIT library (float32 version)
  *
- * xerror_scipy_mp: if non-NULL, will be filled with mpfit's internal mp_xerror_scipy result
+ * xerror_scipy: if non-NULL, will be filled with scipy-style errors from full Hessian inverse
  */
 static void fmpfit_f32_c_wrap(
     const float *x, const float *y, const float *error,
@@ -34,7 +30,7 @@ static void fmpfit_f32_c_wrap(
     float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
     float *resid, float *xerror, float *covar,
-    float *xerror_scipy_mp)
+    float *xerror_scipy)
 {
     int i;
     mp_par *pars = NULL;
@@ -85,19 +81,20 @@ static void fmpfit_f32_c_wrap(
         }
     }
 
-    /* Configure MPFIT */
+    /* Setup MPFIT configuration */
     memset(&config, 0, sizeof(config));
     config.ftol = ftol;
     config.xtol = xtol;
     config.gtol = gtol;
     config.maxiter = maxiter;
+    config.nofinitecheck = 0;
 
-    /* Setup result structure to receive outputs */
+    /* Setup result structure */
     memset(&result, 0, sizeof(result));
     result.resid = resid;
     result.xerror = xerror;
     result.covar = covar;
-    result.xerror_scipy = xerror_scipy_mp; /* If non-NULL, mpfit will compute internal mp_xerror_scipy */
+    result.xerror_scipy = xerror_scipy; /* mpfit computes scipy-style errors from full Hessian inverse */
 
     /* Setup private data for Gaussian model */
     private_data.x = x;
@@ -190,19 +187,17 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     float *best_params = (float *)malloc(npar * sizeof(float));
     float *resid = (float *)malloc(mpoints * sizeof(float));
     float *xerror = (float *)malloc(npar * sizeof(float));
-    float *xerror_scipy = (float *)malloc(npar * sizeof(float));    /* External computation */
-    float *xerror_scipy_mp = (float *)malloc(npar * sizeof(float)); /* mpfit internal computation */
+    float *xerror_scipy = (float *)malloc(npar * sizeof(float));
     float *covar = (float *)malloc(npar * npar * sizeof(float));
     float bestnorm, orignorm;
     int niter, nfev, status;
 
-    if (!best_params || !resid || !xerror || !xerror_scipy || !xerror_scipy_mp || !covar)
+    if (!best_params || !resid || !xerror || !xerror_scipy || !covar)
     {
         free(best_params);
         free(resid);
         free(xerror);
         free(xerror_scipy);
-        free(xerror_scipy_mp);
         free(covar);
         Py_DECREF(x_contig);
         Py_DECREF(y_contig);
@@ -216,35 +211,16 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
        threads may run concurrently. MPFIT and the user callbacks are pure C
        functions (they don't call into Python), so releasing the GIL here is
        safe. */
-    {
-        Py_BEGIN_ALLOW_THREADS
-            fmpfit_f32_c_wrap(x, y, error, p0, bounds,
-                              mpoints, npar, deviate_type,
-                              xtol, ftol, gtol,
-                              maxiter, quiet,
-                              best_params, &bestnorm, &orignorm,
-                              &niter, &nfev, &status,
-                              resid, xerror, covar,
-                              xerror_scipy_mp); /* mpfit internal xerror_scipy */
-
-        /* Compute xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
-        int dof = mpoints - npar;
-        float scale_factor = (dof > 0) ? sqrtf(bestnorm / dof) : 1.0f;
-        float *xerror_scaled = (float *)malloc(npar * sizeof(float));
-        if (xerror_scaled)
-        {
-            for (int i = 0; i < npar; i++)
-            {
-                xerror_scaled[i] = xerror[i] * scale_factor;
-            }
-
-            /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style, external) */
-            compute_xerror_scipy_f32(x, error, best_params, mpoints, npar,
-                                     scale_factor, xerror_scipy, xerror_scaled);
-            free(xerror_scaled);
-        }
-        Py_END_ALLOW_THREADS
-    }
+    Py_BEGIN_ALLOW_THREADS
+    fmpfit_f32_c_wrap(x, y, error, p0, bounds,
+                      mpoints, npar, deviate_type,
+                      xtol, ftol, gtol,
+                      maxiter, quiet,
+                      best_params, &bestnorm, &orignorm,
+                      &niter, &nfev, &status,
+                      resid, xerror, covar,
+                      xerror_scipy); /* mpfit computes scipy-style errors internally */
+    Py_END_ALLOW_THREADS
 
     /* Create output arrays */
     npy_intp dims_params[1] = {npar};
@@ -256,23 +232,20 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     PyArrayObject *xerror_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
     PyArrayObject *covar_array = (PyArrayObject *)PyArray_SimpleNew(2, dims_covar, NPY_FLOAT32);
     PyArrayObject *xerror_scipy_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
-    PyArrayObject *xerror_scipy_mp_array = (PyArrayObject *)PyArray_SimpleNew(1, dims_params, NPY_FLOAT32);
 
     if (!best_params_array || !resid_array || !xerror_array || !covar_array ||
-        !xerror_scipy_array || !xerror_scipy_mp_array)
+        !xerror_scipy_array)
     {
         Py_XDECREF(best_params_array);
         Py_XDECREF(resid_array);
         Py_XDECREF(xerror_array);
         Py_XDECREF(covar_array);
         Py_XDECREF(xerror_scipy_array);
-        Py_XDECREF(xerror_scipy_mp_array);
         free(best_params);
         free(resid);
         free(xerror);
         free(covar);
         free(xerror_scipy);
-        free(xerror_scipy_mp);
         Py_DECREF(x_contig);
         Py_DECREF(y_contig);
         Py_DECREF(error_contig);
@@ -287,7 +260,6 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     memcpy(PyArray_DATA(xerror_array), xerror, npar * sizeof(float));
     memcpy(PyArray_DATA(covar_array), covar, npar * npar * sizeof(float));
     memcpy(PyArray_DATA(xerror_scipy_array), xerror_scipy, npar * sizeof(float));
-    memcpy(PyArray_DATA(xerror_scipy_mp_array), xerror_scipy_mp, npar * sizeof(float));
 
     /* Free temporary buffers */
     free(best_params);
@@ -295,7 +267,6 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     free(xerror);
     free(covar);
     free(xerror_scipy);
-    free(xerror_scipy_mp);
 
     /* Release input arrays */
     Py_DECREF(x_contig);
@@ -313,7 +284,6 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
         Py_DECREF(xerror_array);
         Py_DECREF(covar_array);
         Py_DECREF(xerror_scipy_array);
-        Py_DECREF(xerror_scipy_mp_array);
         return NULL;
     }
 
@@ -336,7 +306,6 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     PyDict_SetItemString(result, "xerror", (PyObject *)xerror_array);
     PyDict_SetItemString(result, "covar", (PyObject *)covar_array);
     PyDict_SetItemString(result, "xerror_scipy", (PyObject *)xerror_scipy_array);
-    PyDict_SetItemString(result, "xerror_scipy_mp", (PyObject *)xerror_scipy_mp_array);
 
     /* Decrement reference counts (dict holds references) */
     Py_DECREF(best_params_array);
@@ -344,7 +313,6 @@ static PyObject *py_fmpfit_f32(PyObject *self, PyObject *args)
     Py_DECREF(xerror_array);
     Py_DECREF(covar_array);
     Py_DECREF(xerror_scipy_array);
-    Py_DECREF(xerror_scipy_mp_array);
 
     return result;
 }

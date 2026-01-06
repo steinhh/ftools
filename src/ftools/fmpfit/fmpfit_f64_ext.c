@@ -16,11 +16,10 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
-/* Include explicit scipy-style error computation */
-#include "xerror_scipy.c"
-
 /*
  * Core MPFIT function - calls MPFIT library (float64 version)
+ *
+ * xerror_scipy: if non-NULL, will be filled with scipy-style errors from full Hessian inverse
  */
 static void fmpfit_f64_c_wrap(
     const double *x, const double *y, const double *error,
@@ -30,7 +29,8 @@ static void fmpfit_f64_c_wrap(
     int maxiter, int quiet,
     double *best_params, double *bestnorm, double *orignorm,
     int *niter, int *nfev, int *status,
-    double *resid, double *xerror, double *covar)
+    double *resid, double *xerror, double *covar,
+    double *xerror_scipy)
 {
   int i;
   mp_par *pars = NULL;
@@ -94,7 +94,7 @@ static void fmpfit_f64_c_wrap(
   result.resid = resid;
   result.xerror = xerror;
   result.covar = covar;
-  /* xerror_scipy will be computed externally after mpfit returns */
+  result.xerror_scipy = xerror_scipy; /* mpfit computes scipy-style errors from full Hessian inverse */
 
   /* Setup private data for user function */
   private_data.x = x;
@@ -210,33 +210,15 @@ static PyObject *py_fmpfit_f64(PyObject *self, PyObject *args)
   /* Release GIL while running the compute-heavy C routine so other Python
      threads may run concurrently. The MPFIT library and callbacks are pure
      C and do not call back into Python, so this is safe. */
-  {
-    Py_BEGIN_ALLOW_THREADS
-        fmpfit_f64_c_wrap(x, y, error, p0, bounds,
-                          mpoints, npar, deviate_type,
-                          xtol, ftol, gtol, maxiter, quiet,
-                          best_params, &bestnorm, &orignorm,
-                          &niter, &nfev, &status,
-                          resid, xerror, covar);
-
-    /* Compute xerror_scaled = xerror * sqrt(chi2 / dof) to match curve_fit default */
-    int dof = mpoints - npar;
-    double scale_factor = (dof > 0) ? sqrt(bestnorm / dof) : 1.0;
-    double *xerror_scaled = (double *)malloc(npar * sizeof(double));
-    if (xerror_scaled)
-    {
-      for (int i = 0; i < npar; i++)
-      {
-        xerror_scaled[i] = xerror[i] * scale_factor;
-      }
-
-      /* Compute xerror_scipy: errors from full Hessian inverse (scipy-style) */
-      compute_xerror_scipy_f64(x, error, best_params, mpoints, npar,
-                               scale_factor, xerror_scipy, xerror_scaled);
-      free(xerror_scaled);
-    }
-    Py_END_ALLOW_THREADS
-  }
+  Py_BEGIN_ALLOW_THREADS
+  fmpfit_f64_c_wrap(x, y, error, p0, bounds,
+                    mpoints, npar, deviate_type,
+                    xtol, ftol, gtol, maxiter, quiet,
+                    best_params, &bestnorm, &orignorm,
+                    &niter, &nfev, &status,
+                    resid, xerror, covar,
+                    xerror_scipy); /* mpfit computes scipy-style errors internally */
+  Py_END_ALLOW_THREADS
 
   /* Create output arrays */
   npy_intp dims_params[1] = {npar};

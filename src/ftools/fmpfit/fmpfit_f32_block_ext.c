@@ -17,12 +17,10 @@
 /* Include Gaussian deviate computation */
 #include "gaussian_deviate.c"
 
-/* Include explicit scipy-style error computation */
-#define XERROR_SCIPY_FLOAT 1
-#include "xerror_scipy.c"
-
 /*
- * Core MPFIT function for a single spectrum (float32 version)
+ * Core MPFIT function for a single spectrum - reused from fmpfit_f32_ext
+ *
+ * xerror_scipy: if non-NULL, will be filled with scipy-style errors from full Hessian inverse
  */
 static void fmpfit_f32_single(
     const float *x, const float *y, const float *error,
@@ -33,7 +31,8 @@ static void fmpfit_f32_single(
     float *best_params, float *bestnorm, float *orignorm,
     int *niter, int *nfev, int *status,
     int *nfree, int *npegged,
-    float *resid, float *xerror, float *covar)
+    float *resid, float *xerror, float *covar,
+    float *xerror_scipy)
 {
   int i;
   mp_par *pars = NULL;
@@ -100,7 +99,7 @@ static void fmpfit_f32_single(
   result.resid = resid;
   result.xerror = xerror;
   result.covar = covar;
-  /* xerror_scipy will be computed externally after mpfit returns */
+  result.xerror_scipy = xerror_scipy; /* mpfit computes scipy-style errors from full Hessian inverse */
 
   /* Setup private data for user function */
   private_data.x = x;
@@ -297,18 +296,8 @@ static PyObject *py_fmpfit_f32_block(PyObject *self, PyObject *args)
         &out_bestnorm[s], &out_orignorm[s],
         &out_niter[s], &out_nfev[s], &out_status[s],
         &out_nfree[s], &out_npegged[s],
-        resid_s, xerror_s, covar_s);
-
-    /* Compute xerror_scipy externally using explicit Gaussian derivatives */
-    int dof = mpoints - npar;
-    float scale_factor = (dof > 0) ? sqrtf(out_bestnorm[s] / dof) : 1.0f;
-    float xerror_scaled_s[3]; /* npar=3 for Gaussian */
-    for (int i = 0; i < npar; i++)
-    {
-      xerror_scaled_s[i] = xerror_s[i] * scale_factor;
-    }
-    compute_xerror_scipy_f32(x_s, error_s, best_params_s, mpoints, npar,
-                             scale_factor, xerror_scipy_s, xerror_scaled_s);
+        resid_s, xerror_s, covar_s,
+        xerror_scipy_s); /* mpfit computes scipy-style errors internally */
 
     /* Set constant values */
     out_npar[s] = npar;

@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 """
-Test script to compare xerror_scipy (external) vs xerror_scipy_mp (internal mpfit)
+Test script to compare fmpfit xerror_scipy against scipy.optimize.curve_fit errors.
 
-This script creates test cases that distinguish between the two implementations:
-- xerror_scipy: Uses explicit Gaussian derivative formulas (xerror_scipy.c)  
-- xerror_scipy_mp: Uses mpfit's internal mp_xerror_scipy which calls user function callback
-
-The goal is to find cases where they differ and understand why.
+The xerror_scipy values are computed by mpfit using the user-provided deviate callback
+to compute the Jacobian, then inverting the full Hessian matrix (J^T*J).
 """
 
 import numpy as np
@@ -68,7 +65,7 @@ def fit_with_scipy(x, y, error, bounds_lower, bounds_upper, p0):
 
 
 def run_test_case(name, true_params, bounds_upper_lw=200.0, n_points=30, noise=0.01):
-    """Run a single test case and compare all three methods."""
+    """Run a single test case and compare fmpfit against scipy."""
     true_amp, true_vel, true_lw = true_params
     
     print(f"\n{'='*80}")
@@ -90,16 +87,15 @@ def run_test_case(name, true_params, bounds_upper_lw=200.0, n_points=30, noise=0
     # Fit with fmpfit
     mp_ = fit_with_fmpfit(x, y, error, bounds_lower, bounds_upper, p0)
     
-    print(f"\nfmpfit results:")
-    print(f"  params:         amp={mp_.best_params[0]:.6f}, vel={mp_.best_params[1]:.4f}, lw={mp_.best_params[2]:.4f}")
-    print(f"  xerror_scipy:   amp={mp_.xerror_scipy[0]:.6f}, vel={mp_.xerror_scipy[1]:.4f}, lw={mp_.xerror_scipy[2]:.4f}")
-    print(f"  xerror_scipy_mp:amp={mp_.xerror_scipy_mp[0]:.6f}, vel={mp_.xerror_scipy_mp[1]:.4f}, lw={mp_.xerror_scipy_mp[2]:.4f}")
+    print("\nfmpfit results:")
+    print(f"  params:       amp={mp_.best_params[0]:.6f}, vel={mp_.best_params[1]:.4f}, lw={mp_.best_params[2]:.4f}")
+    print(f"  xerror_scipy: amp={mp_.xerror_scipy[0]:.6f}, vel={mp_.xerror_scipy[1]:.4f}, lw={mp_.xerror_scipy[2]:.4f}")
     print(f"  status={mp_.status}, npegged={mp_.npegged}")
     
     # Fit with scipy for reference
     popt_scipy, perr_scipy = fit_with_scipy(x, y, error, bounds_lower, bounds_upper, p0)
     
-    print(f"\nscipy results (absolute_sigma=False):")
+    print("\nscipy results (absolute_sigma=False):")
     print(f"  params: amp={popt_scipy[0]:.6f}, vel={popt_scipy[1]:.4f}, lw={popt_scipy[2]:.4f}")
     print(f"  errors: amp={perr_scipy[0]:.6f}, vel={perr_scipy[1]:.4f}, lw={perr_scipy[2]:.4f}")
     
@@ -107,41 +103,29 @@ def run_test_case(name, true_params, bounds_upper_lw=200.0, n_points=30, noise=0
     at_bound = mp_.best_params[2] >= (bounds_upper_lw - 0.01)
     print(f"\nLinewidth at bound: {at_bound}")
     
-    # Compare xerror_scipy vs xerror_scipy_mp
-    diff_external_internal = mp_.xerror_scipy - mp_.xerror_scipy_mp
-    rel_diff_ext_int = np.abs(diff_external_internal) / (mp_.xerror_scipy + 1e-10)
-    
-    print(f"\nComparison (external xerror_scipy vs internal xerror_scipy_mp):")
-    print(f"  Absolute diff: amp={diff_external_internal[0]:.6e}, vel={diff_external_internal[1]:.4e}, lw={diff_external_internal[2]:.4e}")
-    print(f"  Relative diff: amp={rel_diff_ext_int[0]:.2%}, vel={rel_diff_ext_int[1]:.2%}, lw={rel_diff_ext_int[2]:.2%}")
-    
     # Compare to scipy
     diff_vs_scipy = mp_.xerror_scipy - perr_scipy
     rel_diff_scipy = np.abs(diff_vs_scipy) / (perr_scipy + 1e-10)
     
-    diff_mp_vs_scipy = mp_.xerror_scipy_mp - perr_scipy
-    rel_diff_mp_scipy = np.abs(diff_mp_vs_scipy) / (perr_scipy + 1e-10)
+    print("\nComparison fmpfit vs scipy:")
+    print(f"  Absolute diff: amp={diff_vs_scipy[0]:.6e}, vel={diff_vs_scipy[1]:.4e}, lw={diff_vs_scipy[2]:.4e}")
+    print(f"  Relative diff: amp={rel_diff_scipy[0]:.2%}, vel={rel_diff_scipy[1]:.2%}, lw={rel_diff_scipy[2]:.2%}")
     
-    print(f"\nComparison to scipy:")
-    print(f"  xerror_scipy vs scipy:    rel_diff = {rel_diff_scipy}")
-    print(f"  xerror_scipy_mp vs scipy: rel_diff = {rel_diff_mp_scipy}")
-    
-    if np.max(rel_diff_ext_int) > 0.01:  # >1% difference
-        print(f"\n*** SIGNIFICANT DIFFERENCE between external and internal computation! ***")
+    if np.max(rel_diff_scipy) > 0.01:  # >1% difference
+        print("\n*** NOTE: >1% difference between fmpfit and scipy (expected at bounds) ***")
     
     return {
         'name': name,
         'at_bound': at_bound,
         'fmpfit_params': mp_.best_params,
         'xerror_scipy': mp_.xerror_scipy,
-        'xerror_scipy_mp': mp_.xerror_scipy_mp,
         'scipy_errors': perr_scipy,
-        'rel_diff_ext_int': rel_diff_ext_int,
+        'rel_diff_scipy': rel_diff_scipy,
     }
 
 
 def main():
-    print("Testing xerror_scipy (external) vs xerror_scipy_mp (internal)")
+    print("Testing fmpfit xerror_scipy vs scipy curve_fit errors")
     print("=" * 80)
     
     results = []
@@ -187,8 +171,8 @@ def main():
     print("=" * 80)
     
     for r in results:
-        max_rel_diff = np.max(r['rel_diff_ext_int'])
-        status = "DIFF" if max_rel_diff > 0.01 else "OK"
+        max_rel_diff = np.max(r['rel_diff_scipy'])
+        status = "NOTE" if max_rel_diff > 0.01 else "OK"
         print(f"  {r['name']:<45} | at_bound={r['at_bound']!s:<5} | max_rel_diff={max_rel_diff:.2%} | {status}")
 
 

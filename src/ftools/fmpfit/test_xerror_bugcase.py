@@ -49,8 +49,6 @@ mp_ = fmpfit_f32_pywrap(0, parinfo=parinfo, functkw=fa,
 print(f"\nfmpfit results:")
 print(f"  params: amp={mp_.best_params[0]:.6f}, vel={mp_.best_params[1]:.6f}, lw={mp_.best_params[2]:.6f}")
 print(f"  xerror_scipy: {mp_.xerror_scipy}")
-if hasattr(mp_, 'xerror_scipy_mp'):
-    print(f"  xerror_scipy_mp: {mp_.xerror_scipy_mp}")
 print(f"  bestnorm (chi2): {mp_.bestnorm:.6f}")
 
 # Fit with scipy for reference
@@ -71,12 +69,10 @@ except Exception as e:
 print("\n" + "-"*40)
 print("Comparison:")
 print(f"  fmpfit xerror_scipy[1] (vel error): {mp_.xerror_scipy[1]:.6f}")
-if hasattr(mp_, 'xerror_scipy_mp'):
-    print(f"  fmpfit xerror_scipy_mp[1] (vel error): {mp_.xerror_scipy_mp[1]:.6f}")
 try:
     print(f"  scipy error[1] (vel error): {perr_scipy[1]:.6f}")
     ratio = mp_.xerror_scipy[1] / perr_scipy[1] if perr_scipy[1] > 0 else float('inf')
     print(f"  Ratio fmpfit/scipy: {ratio:.2f}")
-except:
+except NameError:
     pass
 print("="*80)
