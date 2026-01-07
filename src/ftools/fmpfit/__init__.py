@@ -5,11 +5,37 @@ Python wrapper for MPFIT (MINPACK-1 Least Squares Fitting Library in C)
 Provides efficient curve fitting with parameter constraints.
 """
 
+import os
 import numpy as np
 from . import fmpfit_f64_ext
 from . import fmpfit_f32_ext
 from . import fmpfit_f64_block_ext
 from . import fmpfit_f32_block_ext
+
+
+def get_include():
+    """Return the directory containing mpfit header and source files.
+    
+    This allows other packages to compile C extensions that use mpfit.
+    
+    Returns
+    -------
+    str
+        Path to directory containing cmpfit-1.5/ subdirectory with mpfit.h and mpfit.c
+    
+    Example
+    -------
+    In another package's setup.py:
+    
+        from ftools.fmpfit import get_include
+        
+        Extension(
+            "mypackage.myext",
+            sources=["myext.c", os.path.join(get_include(), "cmpfit-1.5", "mpfit.c")],
+            include_dirs=[get_include()],
+        )
+    """
+    return os.path.dirname(__file__)
 
 
 class MPFitResult:

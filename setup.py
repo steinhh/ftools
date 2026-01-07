@@ -145,7 +145,7 @@ setup(
     name="ftools",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    version="5.2.12",
+    version="5.2.13",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
@@ -153,6 +153,15 @@ setup(
     license="MIT",
     package_dir={"": "src"},
     packages=find_packages("src"),
+    # Include mpfit C source files so other packages can compile against them
+    package_data={
+        "ftools.fmpfit": [
+            "cmpfit-1.5/mpfit.h",
+            "cmpfit-1.5/mpfit.c",
+            "cmpfit-1.5/DISCLAIMER",
+            "gaussian_deviate.c",
+        ],
+    },
     ext_modules=ext_modules,
     setup_requires=["numpy>=1.20"],
     install_requires=["numpy>=1.20"],
