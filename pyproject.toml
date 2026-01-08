@@ -12,8 +12,6 @@ exclude = [
     "htmlcov",
     ".pytest_cache",
     "*.egg-info",
-    "src/ftools/fits_file_to_fmpfit",  # External/instructions-given code
-    "src/ftools/fmpfit/instructions-given",  # External/instructions-given code
 ]
 
 [tool.ruff.lint]
