@@ -1,0 +1,50 @@
+# Ruff configuration for ftools project
+# See: https://docs.astral.sh/ruff/configuration/
+
+[tool.ruff]
+# Exclude directories that should not be linted
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+    "htmlcov",
+    ".pytest_cache",
+    "*.egg-info",
+    "src/ftools/fits_file_to_fmpfit",  # External/instructions-given code
+    "src/ftools/fmpfit/instructions-given",  # External/instructions-given code
+]
+
+[tool.ruff.lint]
+# Enable specific rule categories
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (critical errors only)
+]
+
+# Ignore specific rules that are too noisy for this codebase
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "E402",  # Module level import not at top of file
+    "E701",  # Multiple statements on one line
+    "E702",  # Multiple statements on one line (semicolon)
+    "E741",  # Ambiguous variable name
+    "F541",  # f-string without placeholders (common in print statements)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore unused imports in __init__.py files
+"__init__.py" = ["F401"]
+# Ignore certain issues in test files
+"test_*.py" = ["F401", "F811", "F841"]
+# Ignore issues in example scripts
+"example_*.py" = ["F541", "F841"]
+# Ignore issues in benchmark scripts
+"benchmark_*.py" = ["F401", "F841"]
+# Ignore issues in comparison scripts
+"compare_*.py" = ["F401", "F841"]
+# Ignore issues in scripts directory
+"scripts/*.py" = ["F401", "F841"]
+# Ignore issues in instruction-given directory (external code)
+"src/ftools/fits_file_to_fmpfit/instructions-given/*.py" = ["F401", "F811", "F841", "E"]

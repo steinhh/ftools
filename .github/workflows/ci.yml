@@ -35,7 +35,9 @@ jobs:
         run: python -m pip install ruff
 
       - name: Run Python linter (ruff)
-        run: python -m ruff check .
+        run: |
+          # Ruff will use pyproject.toml config for exclusions
+          python -m ruff check .
 
       - name: Setup Node for Markdown linting
         uses: actions/setup-node@v4
@@ -47,12 +49,13 @@ jobs:
 
       - name: Run Markdown linter
         run: |
-          # Use repository-level config if present, otherwise use defaults
-          if [ -f .markdownlint.json ]; then
-            markdownlint -c .markdownlint.json "**/*.md"
-          else
-            markdownlint "**/*.md"
-          fi
+          # Use repository-level config and exclude build/venv directories
+          markdownlint -c .markdownlint.json "**/*.md" \
+            --ignore "venv/**" \
+            --ignore "build/**" \
+            --ignore "htmlcov/**" \
+            --ignore "**/__pycache__/**" \
+            --ignore "**/node_modules/**"
 
       - name: Build C extensions in-place
         run: python3 setup.py build_ext --inplace

@@ -1,7 +1,8 @@
 import threading
 import numpy as np
 import pytest
-import os, sys
+import os
+import sys
 
 # Ensure package import path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + '/')
