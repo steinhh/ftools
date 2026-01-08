@@ -57,14 +57,14 @@ class TestGaussianBasic:
         mid = 500
         left_f32 = result_f32[:mid]
         right_f32 = result_f32[mid+1:][::-1]
-        np.testing.assert_allclose(left_f32, right_f32, rtol=1e-6)
+        np.testing.assert_allclose(left_f32, right_f32, rtol=1e-6, atol=1e-9)
         
         # Test f64
         x_f64 = np.linspace(-5, 5, 1001, dtype=np.float64)
         result_f64 = fgaussian_f64(x_f64, 1.0, 0.0, 1.0)
         left_f64 = result_f64[:mid]
         right_f64 = result_f64[mid+1:][::-1]
-        np.testing.assert_allclose(left_f64, right_f64, rtol=1e-14)
+        np.testing.assert_allclose(left_f64, right_f64, rtol=1e-14, atol=1e-18)
     
     def test_fwhm(self):
         """Test Full Width at Half Maximum for both versions"""

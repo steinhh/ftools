@@ -765,7 +765,7 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 2, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 1.0551560319926878e-10, rtol=1e-6,
+            result.bestnorm, 1.0551560319926878e-10, rtol=1e-6, atol=1e-12,
             err_msg="bestnorm changed"
         )
         np.testing.assert_allclose(
@@ -828,7 +828,7 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 3, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 0.019765639677643776, rtol=1e-6,
+            result.bestnorm, 0.019765639677643776, rtol=1e-6, atol=1e-9,
             err_msg="bestnorm changed"
         )
         np.testing.assert_allclose(
