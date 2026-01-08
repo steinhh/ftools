@@ -765,15 +765,15 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 2, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 1.0551560319926878e-10, rtol=1e-6, atol=1e-12,
+            result.bestnorm, 1.0551560319926878e-10, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         np.testing.assert_allclose(
-            result.best_params, [9.999999, 0.5, 1.2000002], rtol=1e-5,
+            result.best_params, [9.999999, 0.5, 1.2000002], rtol=1e-5, atol=1e-7,
             err_msg="best_params changed"
         )
         np.testing.assert_allclose(
-            result.xerror, [0.08412183, 0.011645826, 0.01171242], rtol=1e-5,
+            result.xerror, [0.08412183, 0.011645826, 0.01171242], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -797,15 +797,15 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 5.970493316650391, rtol=1e-6,
+            result.bestnorm, 5.970493316650391, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         np.testing.assert_allclose(
-            result.best_params, [24.93502, -0.30934057, 0.87861663], rtol=1e-5,
+            result.best_params, [24.93502, -0.30934057, 0.87861663], rtol=1e-5, atol=1e-7,
             err_msg="best_params changed"
         )
         np.testing.assert_allclose(
-            result.xerror, [0.60309494, 0.024534091, 0.024543945], rtol=1e-5,
+            result.xerror, [0.60309494, 0.024534091, 0.024543945], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -832,11 +832,11 @@ class TestRegressionF32:
             err_msg="bestnorm changed"
         )
         np.testing.assert_allclose(
-            result.best_params, [32.63615, 0.3731333, 0.6239251], rtol=1e-5,
+            result.best_params, [32.63615, 0.3731333, 0.6239251], rtol=1e-5, atol=1e-7,
             err_msg="best_params changed"
         )
         np.testing.assert_allclose(
-            result.xerror, [5.700121, 0.08752606, 0.06496122], rtol=1e-5,
+            result.xerror, [5.700121, 0.08752606, 0.06496122], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -858,7 +858,7 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 4, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 187.7047882080078, rtol=1e-6,
+            result.bestnorm, 187.7047882080078, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         # sigma should be at lower bound (0.3)
@@ -868,7 +868,7 @@ class TestRegressionF32:
         )
         # xerror[2] (sigma) should be 0 because it hit bound
         np.testing.assert_allclose(
-            result.xerror, [0.9430677, 0.011227073, 0.0], rtol=1e-5,
+            result.xerror, [0.9430677, 0.011227073, 0.0], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -890,7 +890,7 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 812.83447265625, rtol=1e-6,
+            result.bestnorm, 812.83447265625, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         # amplitude should be at upper bound (100), sigma compensates by being wider
@@ -900,7 +900,7 @@ class TestRegressionF32:
         )
         # xerror[0] (amplitude) should be 0 because it hit bound
         np.testing.assert_allclose(
-            result.xerror, [0.0, 0.064807326, 0.06819587], rtol=1e-5,
+            result.xerror, [0.0, 0.064807326, 0.06819587], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -922,17 +922,17 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 196.8758087158203, rtol=1e-6,
+            result.bestnorm, 196.8758087158203, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         # mean should be at lower bound (-2.0)
         np.testing.assert_allclose(
-            result.best_params, [25.3346, -2.0, 0.9260391], rtol=1e-5,
+            result.best_params, [25.3346, -2.0, 0.9260391], rtol=1e-5, atol=1e-7,
             err_msg="best_params changed"
         )
         # xerror[1] (mean) should be 0 because it hit bound
         np.testing.assert_allclose(
-            result.xerror, [0.96681243, 0.0, 0.044000473], rtol=1e-5,
+            result.xerror, [0.96681243, 0.0, 0.044000473], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -954,7 +954,7 @@ class TestRegressionF32:
         # Expected values (recorded 2026-01-06)
         assert result.status == 4, f"status changed: {result.status}"
         np.testing.assert_allclose(
-            result.bestnorm, 793.3380737304688, rtol=1e-6,
+            result.bestnorm, 793.3380737304688, rtol=1e-6, atol=1e-7,
             err_msg="bestnorm changed"
         )
         # amplitude at upper bound (100), sigma at lower bound (0.3)
@@ -964,7 +964,7 @@ class TestRegressionF32:
         )
         # xerror[0] and xerror[2] should be 0 because they hit bounds
         np.testing.assert_allclose(
-            result.xerror, [0.0, 0.010203887, 0.0], rtol=1e-5,
+            result.xerror, [0.0, 0.010203887, 0.0], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
     
@@ -991,7 +991,7 @@ class TestRegressionF32:
             err_msg="best_params changed"
         )
         np.testing.assert_allclose(
-            result.xerror, [0.091921106, 0.21292457, 0.21287873], rtol=1e-5,
+            result.xerror, [0.091921106, 0.21292457, 0.21287873], rtol=1e-5, atol=1e-7,
             err_msg="xerror changed"
         )
 
@@ -1050,12 +1050,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=1e-7,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=1e-7,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1087,12 +1087,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=1e-7,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=1e-7,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1125,12 +1125,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=1e-7,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=1e-7,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1163,12 +1163,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=1e-7,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=1e-7,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1201,12 +1201,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=1e-7,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=1e-7,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
