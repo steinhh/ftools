@@ -6,6 +6,7 @@ scipy's curve_fit when fitting multiple spectra.
 import numpy as np
 import pytest
 from scipy.optimize import curve_fit
+
 from ftools.fmpfit import fmpfit_f64_block_pywrap, fmpfit_f32_block_pywrap
 
 # Tolerance for parameter comparison

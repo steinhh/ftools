@@ -145,7 +145,7 @@ setup(
     name="ftools",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    version="5.2.17",
+    version="5.2.18",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
@@ -165,6 +165,9 @@ setup(
     ext_modules=ext_modules,
     setup_requires=["numpy>=1.20"],
     install_requires=["numpy>=1.20"],
+    extras_require={
+        "test": ["pytest>=6.0", "scipy>=1.7"],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: C",

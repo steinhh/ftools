@@ -6,6 +6,7 @@ for Gaussian fitting. Results should match to within float32 precision.
 import numpy as np
 import pytest
 from scipy.optimize import curve_fit
+
 from ftools.fmpfit import fmpfit_f64_pywrap
 
 # Tolerance for parameter comparison
