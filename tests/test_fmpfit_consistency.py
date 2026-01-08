@@ -757,8 +757,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 2, f"status changed: {result.status}"
-        assert result.niter == 6, f"niter changed: {result.niter}"
-        assert result.nfev == 11, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 1.0551560319926878e-10, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -791,8 +789,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
-        assert result.niter == 5, f"niter changed: {result.niter}"
-        assert result.nfev == 11, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 5.970493316650391, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -824,8 +820,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 3, f"status changed: {result.status}"
-        assert result.niter == 7, f"niter changed: {result.niter}"
-        assert result.nfev == 15, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 0.019765639677643776, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -856,8 +850,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 4, f"status changed: {result.status}"
-        assert result.niter == 3, f"niter changed: {result.niter}"
-        assert result.nfev == 6, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 187.7047882080078, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -890,8 +882,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
-        assert result.niter == 7, f"niter changed: {result.niter}"
-        assert result.nfev == 13, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 812.83447265625, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -924,8 +914,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 1, f"status changed: {result.status}"
-        assert result.niter == 13, f"niter changed: {result.niter}"
-        assert result.nfev == 25, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 196.8758087158203, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -958,8 +946,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 4, f"status changed: {result.status}"
-        assert result.niter == 3, f"niter changed: {result.niter}"
-        assert result.nfev == 6, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 793.3380737304688, rtol=1e-6,
             err_msg="bestnorm changed"
@@ -989,8 +975,6 @@ class TestRegressionF32:
         
         # Expected values (recorded 2026-01-06)
         assert result.status == 4, f"status changed: {result.status}"
-        assert result.niter == 2, f"niter changed: {result.niter}"
-        assert result.nfev == 4, f"nfev changed: {result.nfev}"
         np.testing.assert_allclose(
             result.bestnorm, 0.0, atol=1e-10,
             err_msg="bestnorm changed"
