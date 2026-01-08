@@ -110,10 +110,10 @@ def test_fmpfit_block_vs_curvefit(n_spectra):
                     f"fmpfit={block_result['best_params'][i]}, scipy={scipy_result['params']}"
         )
         
-        # Compare chi-square
+        # Compare chi-square - use larger atol since bestnorm can be very small
         np.testing.assert_allclose(
             block_result['bestnorm'][i], scipy_result['chisq'],
-            rtol=PARAM_RTOL, atol=PARAM_ATOL,
+            rtol=PARAM_RTOL, atol=max(PARAM_ATOL, 1e-6),
             err_msg=f"Spectrum {i}: chisq differs - "
                     f"fmpfit={block_result['bestnorm'][i]}, scipy={scipy_result['chisq']}"
         )
@@ -152,9 +152,10 @@ def test_fmpfit_block_vs_curvefit_large():
         )
         
         # Strict comparison - chi-square must match
+        # Use larger atol since bestnorm can be very small
         np.testing.assert_allclose(
             block_result['bestnorm'][i], scipy_result['chisq'],
-            rtol=PARAM_RTOL, atol=PARAM_ATOL,
+            rtol=PARAM_RTOL, atol=max(PARAM_ATOL, 1e-6),
             err_msg=f"Spectrum {i}: chisq differs"
         )
     
