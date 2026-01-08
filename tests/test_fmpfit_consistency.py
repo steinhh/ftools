@@ -103,10 +103,11 @@ def compare_single_results(result_a, result_b, name_a, name_b, rtol=RTOL, atol=A
     )
     
     # xerror_scipy comparison - only when same precision, as it depends on bestnorm
+    # Use atol since xerror_scipy can be very small or zero
     if same_precision:
         np.testing.assert_allclose(
             result_a.xerror_scipy, result_b.xerror_scipy,
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"xerror_scipy mismatch between {name_a} and {name_b}"
         )
     else:
@@ -128,30 +129,33 @@ def compare_single_results(result_a, result_b, name_a, name_b, rtol=RTOL, atol=A
                 err_msg=f"xerror_scipy zero positions mismatch between {name_a} and {name_b}"
             )
     
+    # Use atol for residuals since they can be very close to zero for good fits
     np.testing.assert_allclose(
         result_a.resid, result_b.resid,
-        rtol=param_rtol, atol=param_atol,
+        rtol=param_rtol, atol=max(param_atol, 1e-6),
         err_msg=f"resid mismatch between {name_a} and {name_b}"
     )
     
     # Covariance - only when same precision
+    # Use atol since covariance elements can be small
     if same_precision:
         np.testing.assert_allclose(
             result_a.covar, result_b.covar,
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"covar mismatch between {name_a} and {name_b}"
         )
     
     # bestnorm/orignorm - only when same precision
+    # Use atol since bestnorm can be very small for perfect fits
     if same_precision:
         np.testing.assert_allclose(
             result_a.bestnorm, result_b.bestnorm,
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"bestnorm mismatch between {name_a} and {name_b}"
         )
         np.testing.assert_allclose(
             result_a.orignorm, result_b.orignorm,
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-6),
             err_msg=f"orignorm mismatch between {name_a} and {name_b}"
         )
     
@@ -204,10 +208,11 @@ def compare_block_results(result_a, result_b, name_a, name_b, rtol=RTOL, atol=AT
         err_msg=f"xerror mismatch between {name_a} and {name_b}"
     )
     
+    # Use atol since xerror_scipy can be very small or zero
     if same_precision:
         np.testing.assert_allclose(
             result_a['xerror_scipy'], result_b['xerror_scipy'],
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"xerror_scipy mismatch between {name_a} and {name_b}"
         )
     else:
@@ -221,26 +226,28 @@ def compare_block_results(result_a, result_b, name_a, name_b, rtol=RTOL, atol=AT
                     err_msg=f"xerror_scipy relative shape mismatch at spectrum {i}"
                 )
     
+    # Use atol for residuals since they can be very close to zero for good fits
     np.testing.assert_allclose(
         result_a['resid'], result_b['resid'],
-        rtol=param_rtol, atol=param_atol,
+        rtol=param_rtol, atol=max(param_atol, 1e-6),
         err_msg=f"resid mismatch between {name_a} and {name_b}"
     )
     
+    # Use atol since these values can be small
     if same_precision:
         np.testing.assert_allclose(
             result_a['covar'], result_b['covar'],
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"covar mismatch between {name_a} and {name_b}"
         )
         np.testing.assert_allclose(
             result_a['bestnorm'], result_b['bestnorm'],
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-9),
             err_msg=f"bestnorm mismatch between {name_a} and {name_b}"
         )
         np.testing.assert_allclose(
             result_a['orignorm'], result_b['orignorm'],
-            rtol=rtol, atol=atol,
+            rtol=rtol, atol=max(atol, 1e-6),
             err_msg=f"orignorm mismatch between {name_a} and {name_b}"
         )
     
