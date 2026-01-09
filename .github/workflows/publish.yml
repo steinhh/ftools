@@ -1,4 +1,4 @@
-name: Build and Publish to PyPI
+name: Build and Publish to TestPyPI
 
 on:
   release:
@@ -6,12 +6,6 @@ on:
   push:
     tags:
       - 'v*-test*'  # Trigger on test tags
-  workflow_dispatch:
-    inputs:
-      publish_to_pypi:
-        description: 'Publish to PyPI (yes/no)'
-        required: true
-        default: 'no'
 
 jobs:
   build_sdist:
@@ -84,6 +78,10 @@ jobs:
     runs-on: ubuntu-latest
     # Only publish on release, test tags, or manual trigger with publish_to_pypi=yes
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'yes')
+    
+    environment:
+      name: pypi
+      url: https://test.pypi.org/project/ftoolss/
     
     permissions:
       id-token: write  # Required for trusted publishing
