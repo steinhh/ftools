@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+Create and push a test tag based on the current project version.
+Usage: ./tag-and-push [N]
+Where N is the test number (defaults to 1 if not specified).
+Creates a tag like v6.0.19-test1 and pushes it to origin.
+"""
+
+import re
+import subprocess
+import sys
+import os
+
+
+def get_current_version():
+    """Extract version from setup.py"""
+    setup_py_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'setup.py')
+    
+    with open(setup_py_path, 'r') as f:
+        content = f.read()
+    
+    # Look for version="X.Y.Z" pattern
+    match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
+    if not match:
+        raise ValueError("Could not find version in setup.py")
+    
+    return match.group(1)
+
+
+def get_existing_test_tags(version):
+    """Get existing test tags for this version"""
+    try:
+        result = subprocess.run(['git', 'tag', '-l', f'v{version}-test*'], 
+                              capture_output=True, text=True, check=True)
+        return result.stdout.strip().split('\n') if result.stdout.strip() else []
+    except subprocess.CalledProcessError:
+        return []
+
+
+def get_next_test_number(version):
+    """Find the next available test number"""
+    existing_tags = get_existing_test_tags(version)
+    
+    if not existing_tags:
+        return 1
+    
+    # Extract test numbers
+    test_numbers = []
+    for tag in existing_tags:
+        match = re.search(rf'v{re.escape(version)}-test(\d+)', tag)
+        if match:
+            test_numbers.append(int(match.group(1)))
+    
+    return max(test_numbers) + 1 if test_numbers else 1
+
+
+def create_and_push_tag(version, test_num):
+    """Create and push the tag"""
+    tag = f"v{version}-test{test_num}"
+    
+    print(f"Creating tag: {tag}")
+    
+    try:
+        # Create the tag
+        subprocess.run(['git', 'tag', tag], check=True)
+        print(f"? Created tag {tag}")
+        
+        # Push the tag
+        subprocess.run(['git', 'push', 'origin', tag], check=True)
+        print(f"? Pushed tag {tag} to origin")
+        
+        return tag
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def main():
+    # Handle help request
+    if len(sys.argv) > 1 and sys.argv[1] in ['--help', '-h', 'help']:
+        print(__doc__)
+        print("\nExamples:")
+        print("  ./scripts/tag-and-push      # Auto-increment test number")
+        print("  ./scripts/tag-and-push 1    # Create v6.0.19-test1") 
+        print("  ./scripts/tag-and-push 5    # Create v6.0.19-test5")
+        return
+    
+    try:
+        # Get current version from setup.py
+        version = get_current_version()
+        print(f"Current project version: {version}")
+        
+        # Get test number from command line or auto-increment
+        if len(sys.argv) > 1:
+            try:
+                test_num = int(sys.argv[1])
+            except ValueError:
+                print("Error: Test number must be an integer")
+                sys.exit(1)
+        else:
+            test_num = get_next_test_number(version)
+            print(f"Auto-selected test number: {test_num}")
+        
+        # Create and push tag
+        tag = create_and_push_tag(version, test_num)
+        
+        print(f"\n? Successfully created and pushed {tag}")
+        print("This will trigger TestPyPI publishing via GitHub Actions.")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
