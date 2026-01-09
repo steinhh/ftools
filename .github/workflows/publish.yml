@@ -65,10 +65,10 @@ jobs:
           CIBW_SKIP: "*-win32 *-manylinux_i686 *musllinux*"
           # Install numpy before building
           CIBW_BEFORE_BUILD: "pip install numpy"
-          # Test the wheel - copy tests to temp dir to avoid src/ shadowing installed package
+          # Test the wheel - copy tests to temp dir, clean pycache, avoid src/ shadowing
           CIBW_TEST_REQUIRES: "pytest numpy scipy"
-          CIBW_BEFORE_TEST: "cp -r {project}/tests /tmp/ftoolss_tests"
-          CIBW_TEST_COMMAND: "python -c 'from ftoolss import fmedian, fsigma; print(\"Import OK\")' && pytest /tmp/ftoolss_tests -q"
+          CIBW_BEFORE_TEST: "rm -rf /tmp/ftoolss_tests && mkdir -p /tmp/ftoolss_tests && cp {project}/tests/*.py /tmp/ftoolss_tests/ && find /tmp/ftoolss_tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true"
+          CIBW_TEST_COMMAND: "python -c 'from ftoolss import fmedian, fsigma; print(\"Import OK\")' && pytest /tmp/ftoolss_tests -q --ignore=__pycache__"
           # macOS arm64 cross-compilation settings
           CIBW_ARCHS_MACOS: "native"
 
