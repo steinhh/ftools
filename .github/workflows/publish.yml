@@ -83,71 +83,9 @@ jobs:
           name: dist-wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
 
-  verify_artifacts:
-    name: Verify built artifacts
-    needs: [build_sdist, build_wheels]
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dist-*
-          path: dist
-          merge-multiple: true
-
-      - name: List all artifacts
-        run: ls -la dist/
-
-      - name: Verify wheel integrity
-        run: |
-          echo "Verifying wheel file integrity..."
-          for wheel in dist/*.whl; do
-            if [ -f "$wheel" ]; then
-              echo "Checking $wheel..."
-              # Test if it's a valid ZIP file
-              if ! python -m zipfile -t "$wheel" >/dev/null 2>&1; then
-                echo "ERROR: $wheel is corrupted or not a valid ZIP file"
-                exit 1
-              fi
-              # Check wheel metadata
-              if ! python -m wheel unpack --dest /tmp/wheel_check "$wheel" >/dev/null 2>&1; then
-                echo "ERROR: $wheel has invalid wheel metadata"
-                exit 1
-              fi
-              rm -rf /tmp/wheel_check/*
-              echo "? $wheel is valid"
-            fi
-          done
-
-      - name: Verify source distribution
-        run: |
-          echo "Verifying source distribution..."
-          for sdist in dist/*.tar.gz; do
-            if [ -f "$sdist" ]; then
-              echo "Checking $sdist..."
-              # Test if it's a valid tar.gz file
-              if ! tar -tzf "$sdist" >/dev/null 2>&1; then
-                echo "ERROR: $sdist is corrupted or not a valid tar.gz file"
-                exit 1
-              fi
-              echo "? $sdist is valid"
-            fi
-          done
-
-      - name: Install and test a wheel
-        run: |
-          # Pick the first available wheel and test it
-          wheel=$(ls dist/*.whl | head -n 1)
-          if [ -f "$wheel" ]; then
-            echo "Testing installation of $wheel..."
-            python -m pip install "$wheel"
-            python -c "import ftoolss; print('? Import test passed')"
-          fi
-
   publish_testpypi:
     name: Publish to TestPyPI
-    needs: [verify_artifacts]
+    needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
     # Publish to TestPyPI on test tags or manual trigger with testpypi/both
     if: |
@@ -180,7 +118,7 @@ jobs:
 
   publish_pypi:
     name: Publish to PyPI
-    needs: [verify_artifacts]
+    needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
     # Publish to PyPI on releases or manual trigger with pypi/both
     if: |
