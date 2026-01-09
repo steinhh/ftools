@@ -8,9 +8,19 @@ on:
       - 'v*-test*'  # Trigger on test tags
 
 jobs:
-  build_sdist:
-    name: Build source distribution
+  build_and_publish:
+    name: Build and publish Python distribution
     runs-on: ubuntu-latest
+    # Only publish on release or test tags 
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+    
+    environment:
+      name: pypi
+      url: https://test.pypi.org/project/ftoolss/
+    
+    permissions:
+      id-token: write  # Required for trusted publishing
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,38 +30,13 @@ jobs:
           python-version: '3.13'
 
       - name: Install build dependencies
-        run: python -m pip install --upgrade pip build numpy
+        run: python -m pip install --upgrade pip build numpy cibuildwheel
 
-      - name: Build sdist
+      - name: Build source distribution
         run: python -m build --sdist
 
-      - name: Upload sdist
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-sdist
-          path: dist/*.tar.gz
-
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-14, macos-15]
-        # macos-14 is arm64, macos-15 is arm64
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel
-
       - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
+        run: python -m cibuildwheel --output-dir dist
         env:
           # Build for Python 3.10-3.13
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
@@ -63,39 +48,44 @@ jobs:
           CIBW_TEST_REQUIRES: "pytest numpy scipy"
           CIBW_BEFORE_TEST: "rm -rf /tmp/ftoolss_tests && mkdir -p /tmp/ftoolss_tests && cp {project}/tests/*.py /tmp/ftoolss_tests/ && find /tmp/ftoolss_tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true"
           CIBW_TEST_COMMAND: "python -c 'from ftoolss import fmedian, fsigma; print(\"Import OK\")' && pytest /tmp/ftoolss_tests -q --ignore=__pycache__"
-          # macOS arm64 cross-compilation settings
-          CIBW_ARCHS_MACOS: "native"
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-wheels-${{ matrix.os }}
-          path: ./wheelhouse/*.whl
-
-  publish:
-    name: Publish to TestPyPI
-    needs: [build_sdist, build_wheels]
-    runs-on: ubuntu-latest
-    # Only publish on release, test tags, or manual trigger with publish_to_pypi=yes
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'yes')
-    
-    environment:
-      name: pypi
-      url: https://test.pypi.org/project/ftoolss/
-    
-    permissions:
-      id-token: write  # Required for trusted publishing
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dist-*
-          path: dist
-          merge-multiple: true
+          # Build for linux x86_64 only on ubuntu runner
+          CIBW_ARCHS_LINUX: "x86_64"
 
       - name: List distribution files
         run: ls -la dist/
+
+      - name: Verify distribution integrity
+        run: |
+          echo "Verifying distribution files..."
+          # Check source distribution
+          for sdist in dist/*.tar.gz; do
+            if [ -f "$sdist" ]; then
+              echo "Checking $sdist..."
+              if ! tar -tzf "$sdist" >/dev/null 2>&1; then
+                echo "ERROR: $sdist is corrupted"
+                exit 1
+              fi
+              echo "? $sdist is valid"
+            fi
+          done
+          # Check wheels
+          pip install wheel
+          for wheel_file in dist/*.whl; do
+            if [ -f "$wheel_file" ]; then
+              echo "Checking $wheel_file..."
+              if ! python -m zipfile -t "$wheel_file" >/dev/null 2>&1; then
+                echo "ERROR: $wheel_file is corrupted"
+                exit 1
+              fi
+              if ! python -m wheel unpack --dest /tmp/wheel_check "$wheel_file" >/dev/null 2>&1; then
+                echo "ERROR: $wheel_file has invalid metadata"
+                python -m wheel unpack --dest /tmp/wheel_check "$wheel_file" 2>&1 || true
+                exit 1
+              fi
+              rm -rf /tmp/wheel_check/*
+              echo "? $wheel_file is valid"
+            fi
+          done
 
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
