@@ -8,6 +8,8 @@ on:
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create releases
 
     steps:
       - name: Checkout repository
@@ -36,7 +38,7 @@ jobs:
             
             ## Installation
             ```bash
-            pip install ftools==${{ github.ref_name }}
+            pip install ftoolss==${{ github.ref_name }}
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
