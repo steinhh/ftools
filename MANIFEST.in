@@ -1,0 +1,22 @@
+# Include sorting network implementation files
+recursive-include src/ftoolss/sorting *.c *.h
+
+# Include cmpfit library files
+recursive-include src/ftoolss/fmpfit/cmpfit-1.5 *.c *.h
+
+# Include all C extension source files
+recursive-include src/ftoolss *.c *.h
+
+# Include documentation
+include README.md
+include LICENSE
+
+# Include test files
+recursive-include tests *.py
+
+# Exclude compiled files and caches
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude *.so
+global-exclude *.dylib
