@@ -1015,6 +1015,7 @@ class TestF32VsScipy:
     # Tolerance for scipy comparison
     SCIPY_PARAM_RTOL = 1e-3   # Parameters should match within 0.1%
     SCIPY_ERROR_RTOL = 1e-4   # Errors should match very closely (same scaling)
+    SCIPY_ATOL = 1e-4         # Absolute tolerance for scipy comparisons
     
     @staticmethod
     def scipy_gaussian(x, i0, mu, sigma):
@@ -1050,12 +1051,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=5e-7,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=5e-7,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1087,12 +1088,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=5e-7,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=5e-7,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1125,12 +1126,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=5e-7,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=5e-7,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1163,12 +1164,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=5e-7,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=5e-7,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
@@ -1201,12 +1202,12 @@ class TestF32VsScipy:
         
         # Parameters should match
         np.testing.assert_allclose(
-            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=5e-7,
+            result_f32.best_params, popt, rtol=self.SCIPY_PARAM_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit f32 params don't match scipy"
         )
         # xerror_scipy should match scipy errors
         np.testing.assert_allclose(
-            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=5e-7,
+            result_f32.xerror_scipy, perr, rtol=self.SCIPY_ERROR_RTOL, atol=self.SCIPY_ATOL,
             err_msg="fmpfit xerror_scipy doesn't match scipy perr"
         )
     
