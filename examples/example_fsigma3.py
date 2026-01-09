@@ -8,7 +8,7 @@ the local standard deviation (sigma) around each voxel.
 
 import numpy as np
 
-from ftools.fsigma3 import fsigma3
+from ftoolss.fsigma3 import fsigma3
 
 def main():
     print("=" * 60)

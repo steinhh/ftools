@@ -7,7 +7,7 @@ precision for the same test data.
 """
 
 import numpy as np
-from ftools.fmpfit import (
+from ftoolss.fmpfit import (
     fmpfit_f32_block_pywrap, fmpfit_f64_block_pywrap,
     fmpfit_f32_pywrap, fmpfit_f64_pywrap
 )

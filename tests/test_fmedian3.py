@@ -8,8 +8,8 @@ Organized into test classes:
 import numpy as np
 import pytest
 
-from ftools import fmedian3d as fmedian3
-from ftools.fmedian3 import fmedian3 as fmedian3_direct
+from ftoolss import fmedian3d as fmedian3
+from ftoolss.fmedian3 import fmedian3 as fmedian3_direct
 
 
 class TestFmedian3Core:

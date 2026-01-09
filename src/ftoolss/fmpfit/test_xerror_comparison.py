@@ -10,9 +10,9 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 try:
-    import ftools
-    from ftools.fmpfit import fmpfit_f32_pywrap
-    print(f"ftools version: {ftools.__version__}")
+    import ftoolss
+    from ftoolss.fmpfit import fmpfit_f32_pywrap
+    print(f"ftools version: {ftoolss.__version__}")
 except ImportError:
     print("ERROR: ftools not installed")
     raise

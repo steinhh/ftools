@@ -60,7 +60,7 @@ Comprehensive benchmark comparing scalar and Accelerate-vectorized implementatio
 
 1. **setup.py**: Added `FORCE_SCALAR` environment variable support
    - When `FORCE_SCALAR=1`, appends `-DFORCE_SCALAR` to compiler args
-2. **src/ftools/fgaussian/*_ext.c**: Modified Accelerate guards
+2. **src/ftoolss/fgaussian/*_ext.c**: Modified Accelerate guards
    - Changed: `#if defined(__APPLE__)`
    - To: `#if defined(__APPLE__) && !defined(FORCE_SCALAR)`
    - Allows scalar implementation when explicitly requested
@@ -83,11 +83,11 @@ Comprehensive benchmark comparing scalar and Accelerate-vectorized implementatio
 ## Files Modified
 
 - `setup.py`: Added FORCE_SCALAR compilation option
-- `src/ftools/fgaussian/fgaussian_f32_ext.c`: Conditional Accelerate compilation
-- `src/ftools/fgaussian/fgaussian_f64_ext.c`: Conditional Accelerate compilation
-- `src/ftools/fgaussian/fgaussian_jacobian_f32_ext.c`: Conditional Accelerate compilation
-- `src/ftools/fgaussian/fgaussian_jacobian_f64_ext.c`: Conditional Accelerate compilation
-- `src/ftools/fgaussian/fgaussian_jacobian_f64_f32_ext.c`: Conditional Accelerate compilation
+- `src/ftoolss/fgaussian/fgaussian_f32_ext.c`: Conditional Accelerate compilation
+- `src/ftoolss/fgaussian/fgaussian_f64_ext.c`: Conditional Accelerate compilation
+- `src/ftoolss/fgaussian/fgaussian_jacobian_f32_ext.c`: Conditional Accelerate compilation
+- `src/ftoolss/fgaussian/fgaussian_jacobian_f64_ext.c`: Conditional Accelerate compilation
+- `src/ftoolss/fgaussian/fgaussian_jacobian_f64_f32_ext.c`: Conditional Accelerate compilation
 
 ## Reproducibility
 

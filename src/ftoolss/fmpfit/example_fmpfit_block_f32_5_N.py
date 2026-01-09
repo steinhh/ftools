@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import from local module if running from fmpfit directory
 try:
-    from ftools.fmpfit import fmpfit_f32_block_pywrap
+    from ftoolss.fmpfit import fmpfit_f32_block_pywrap
 except ModuleNotFoundError:
     # Try direct import if in fmpfit directory
     import importlib.util

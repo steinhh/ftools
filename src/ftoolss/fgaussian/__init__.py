@@ -41,7 +41,7 @@ def fgaussian_f32(x, i0, mu, sigma):
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools import fgaussian_f32
+    >>> from ftoolss import fgaussian_f32
     >>> x = np.linspace(-5, 5, 100, dtype=np.float32)
     >>> profile = fgaussian_f32(x, i0=1.0, mu=0.0, sigma=1.0)
     """
@@ -78,7 +78,7 @@ def fgaussian_f64(x, i0, mu, sigma):
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools import fgaussian_f64
+    >>> from ftoolss import fgaussian_f64
     >>> x = np.linspace(-5, 5, 100, dtype=np.float64)
     >>> profile = fgaussian_f64(x, i0=1.0, mu=0.0, sigma=1.0)
     """

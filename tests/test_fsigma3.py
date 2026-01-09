@@ -8,8 +8,8 @@ Organized into test classes:
 import numpy as np
 import pytest
 
-from ftools import fsigma3d as fsigma3
-from ftools.fsigma3 import fsigma3 as fsigma3_direct
+from ftoolss import fsigma3d as fsigma3
+from ftoolss.fsigma3 import fsigma3 as fsigma3_direct
 
 
 class TestFsigma3Core:

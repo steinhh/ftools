@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from scipy.optimize import curve_fit
 
-from ftools.fmpfit import fmpfit_f64_pywrap
+from ftoolss.fmpfit import fmpfit_f64_pywrap
 
 # Tolerance for parameter comparison
 # Results should match very closely - within about 1e-3 absolute and relative

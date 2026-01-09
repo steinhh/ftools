@@ -13,8 +13,8 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from ftools import fmpfit_f64_pywrap, fmpfit_f32_pywrap
-from ftools.fmpfit import MPFitResult
+from ftoolss import fmpfit_f64_pywrap, fmpfit_f32_pywrap
+from ftoolss.fmpfit import MPFitResult
 
 
 def test_fmpfit_import():

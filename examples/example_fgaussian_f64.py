@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, 'src')
 
 import numpy as np
-from ftools.fgaussian import fgaussian_f64
+from ftoolss.fgaussian import fgaussian_f64
 
 # Example parameters
 i0 = 1.0      # Peak intensity

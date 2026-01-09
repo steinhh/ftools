@@ -24,7 +24,7 @@ print("\nRunning benchmark in subprocess (should be scalar)...")
 script = """
 import numpy as np
 import time
-from ftools.fgaussian import fgaussian_f64_ext
+from ftoolss.fgaussian import fgaussian_f64_ext
 
 n = 100000
 num_iter = 100
@@ -65,7 +65,7 @@ print("\nRunning benchmark in subprocess (should be accelerate)...")
 script = """
 import numpy as np
 import time
-from ftools.fgaussian import fgaussian_f64_ext
+from ftoolss.fgaussian import fgaussian_f64_ext
 
 n = 100000
 num_iter = 100

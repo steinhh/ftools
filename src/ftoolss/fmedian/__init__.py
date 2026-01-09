@@ -1,4 +1,4 @@
-"""ftools.fmedian package loader.
+"""ftoolss.fmedian package loader.
 
 This module locates the pre-built extension shared object in the repository
 (`../fmedian/fmedian_ext*.so`) and loads it as a private module, then

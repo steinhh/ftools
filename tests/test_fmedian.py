@@ -8,7 +8,7 @@ Organized into test classes:
 import numpy as np
 import pytest
 
-from ftools import fmedian
+from ftoolss import fmedian
 
 
 class TestFmedianCore:

@@ -5,7 +5,7 @@ Each test function tests both float32 and float64 versions using appropriate inp
 
 import numpy as np
 import pytest
-from ftools.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
+from ftoolss.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
 
 # Access the C extension functions directly
 fgaussian_f32 = fgaussian_f32_ext.fgaussian_f32

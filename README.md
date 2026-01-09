@@ -1,4 +1,4 @@
-# ftools
+# ftoolss
 
 High-performance C extensions for image processing and curve fitting.
 
@@ -33,7 +33,7 @@ python setup.py build_ext --inplace  # Build extensions only
 
 ```python
 import numpy as np
-from ftools import fmedian, fsigma, fgaussian_f32, fgaussian_f64
+from ftoolss import fmedian, fsigma, fgaussian_f32, fgaussian_f64
 
 # 2D/3D median and sigma filters
 data = np.random.randn(100, 200)
@@ -54,7 +54,7 @@ profile = fgaussian_f32(x, i0=1.0, mu=0.0, sigma=1.5)
 Single-spectrum fitting with auto dtype dispatch:
 
 ```python
-from ftools.fmpfit import fmpfit_pywrap
+from ftoolss.fmpfit import fmpfit_pywrap
 import numpy as np
 
 x = np.linspace(-5, 5, 100)
@@ -76,7 +76,7 @@ print(f"SciPy-style errors (full Hessian): {result.xerror_scipy}")
 Block fitting (multiple spectra in one call, GIL-free):
 
 ```python
-from ftools.fmpfit import fmpfit_block_pywrap
+from ftoolss.fmpfit import fmpfit_block_pywrap
 import numpy as np
 
 n_spectra, mpoints, npar = 100, 200, 3
@@ -114,7 +114,7 @@ fgaussian_f64(x, i0, mu, sigma)  # float64
 
 ### fmpfit
 
-Levenberg-Marquardt least-squares fitting. See `src/ftools/fmpfit/README.md` for details.
+Levenberg-Marquardt least-squares fitting. See `src/ftoolss/fmpfit/README.md` for details.
 
 | Function | Description |
 |----------|-------------|
@@ -133,7 +133,7 @@ See `examples/` directory for complete working examples.
 
 ```bash
 pytest                              # Run all tests
-pytest --cov=ftools --cov-report=html  # With coverage
+pytest --cov=ftoolss --cov-report=html  # With coverage
 ```
 
 ## Performance

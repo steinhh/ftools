@@ -8,7 +8,7 @@ the local standard deviation (sigma) around each pixel.
 
 import numpy as np
 
-from ftools.fsigma import fsigma
+from ftoolss.fsigma import fsigma
 
 def main():
     print("=" * 60)

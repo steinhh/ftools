@@ -19,7 +19,7 @@ Note: f32 vs f64 comparisons allow for precision-related differences in:
 """
 import numpy as np
 import pytest
-from ftools.fmpfit import (
+from ftoolss.fmpfit import (
     fmpfit_f32_pywrap, fmpfit_f64_pywrap,
     fmpfit_f32_block_pywrap, fmpfit_f64_block_pywrap,
 )

@@ -7,7 +7,7 @@ import sys
 # Ensure package import path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)) + '/')
 
-from ftools import fmpfit_f64_pywrap, fmpfit_f32_pywrap
+from ftoolss import fmpfit_f64_pywrap, fmpfit_f32_pywrap
 
 
 def make_functkw(dtype):

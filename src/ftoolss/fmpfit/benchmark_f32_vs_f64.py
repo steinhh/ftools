@@ -16,7 +16,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools.fmpfit import fmpfit_f64_pywrap, fmpfit_f32_pywrap
+from ftoolss.fmpfit import fmpfit_f64_pywrap, fmpfit_f32_pywrap
 
 
 def benchmark_single_fit(dtype_name, wrap_func, use_float32, seed=42):

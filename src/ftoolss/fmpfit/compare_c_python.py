@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
 import numpy as np
 from scipy.optimize import curve_fit
-from ftools.fmpfit import fmpfit_f64_pywrap
+from ftoolss.fmpfit import fmpfit_f64_pywrap
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for PNG output
 import matplotlib.pyplot as plt

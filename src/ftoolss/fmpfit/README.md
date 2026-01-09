@@ -18,7 +18,7 @@ Python wrapper for MPFIT (cmpfit, MINPACK-1 Least Squares Fitting Library in C) 
 
 ```python
 import numpy as np
-from ftools.fmpfit import fmpfit_pywrap  # auto dtype dispatch
+from ftoolss.fmpfit import fmpfit_pywrap  # auto dtype dispatch
 
 # Generate data
 x = np.linspace(-5, 5, 100)
@@ -52,7 +52,7 @@ print(f"Iterations: {result.niter}")
 ### Block Fitting (Multiple Spectra)
 
 ```python
-from ftools.fmpfit import fmpfit_block_pywrap
+from ftoolss.fmpfit import fmpfit_block_pywrap
 import numpy as np
 
 n_spectra, mpoints, npar = 100, 200, 3
@@ -150,7 +150,7 @@ Threading is beneficial when individual fits take >0.5ms.
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
-from ftools.fmpfit import fmpfit_f64_pywrap
+from ftoolss.fmpfit import fmpfit_f64_pywrap
 
 with ThreadPoolExecutor(max_workers=4) as executor:
     results = list(executor.map(run_fit, dataset_list))

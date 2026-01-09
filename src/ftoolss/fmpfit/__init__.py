@@ -27,7 +27,7 @@ def get_include():
     -------
     In another package's setup.py:
     
-        from ftools.fmpfit import get_include
+        from ftoolss.fmpfit import get_include
         
         Extension(
             "mypackage.myext",
@@ -145,7 +145,7 @@ def fmpfit_f64_pywrap(deviate_type, parinfo=None, functkw=None, #NOSONAR
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_f64_pywrap
+    >>> from ftoolss.fmpfit import fmpfit_f64_pywrap
     >>> x = np.linspace(-5, 5, 100)
     >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
     >>> error = np.ones_like(y) * 0.1
@@ -402,7 +402,7 @@ def fmpfit_f64_block_pywrap(deviate_type, x, y, error, p0, bounds, #NOSONAR
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_f64_block_pywrap
+    >>> from ftoolss.fmpfit import fmpfit_f64_block_pywrap
     >>> n_spectra, n_points, n_params = 100, 5, 3
     >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
     >>> # ... generate y, error, p0, bounds ...
@@ -573,7 +573,7 @@ def fmpfit_block_pywrap(deviate_type, x, y, error, p0, bounds, dtype=None, #NOSO
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_block_pywrap
+    >>> from ftoolss.fmpfit import fmpfit_block_pywrap
     >>> n_spectra, n_points, n_params = 100, 5, 3
     >>> x = np.tile(np.linspace(-2, 2, n_points), (n_spectra, 1))
     >>> # ... generate y, error, p0, bounds ...
@@ -646,7 +646,7 @@ def fmpfit_pywrap(deviate_type, parinfo=None, functkw=None, dtype=None, #NOSONAR
     Examples
     --------
     >>> import numpy as np
-    >>> from ftools.fmpfit import fmpfit_pywrap
+    >>> from ftoolss.fmpfit import fmpfit_pywrap
     >>> x = np.linspace(-5, 5, 100)
     >>> y = 2.5 * np.exp(-0.5*((x-1.0)/0.8)**2) + np.random.normal(0, 0.1, 100)
     >>> error = np.ones_like(y) * 0.1

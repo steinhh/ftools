@@ -1,4 +1,4 @@
-# Ruff configuration for ftools project
+# Ruff configuration for ftoolss project
 # See: https://docs.astral.sh/ruff/configuration/
 
 [tool.ruff]
@@ -45,4 +45,4 @@ ignore = [
 # Ignore issues in scripts directory
 "scripts/*.py" = ["F401", "F841"]
 # Ignore issues in instruction-given directory (external code)
-"src/ftools/fits_file_to_fmpfit/instructions-given/*.py" = ["F401", "F811", "F841", "E"]
+"src/ftoolss/fits_file_to_fmpfit/instructions-given/*.py" = ["F401", "F811", "F841", "E"]

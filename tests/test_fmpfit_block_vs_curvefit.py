@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from scipy.optimize import curve_fit
 
-from ftools.fmpfit import fmpfit_f64_block_pywrap, fmpfit_f32_block_pywrap
+from ftoolss.fmpfit import fmpfit_f64_block_pywrap, fmpfit_f32_block_pywrap
 
 # Tolerance for parameter comparison
 PARAM_RTOL = 1e-3

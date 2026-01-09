@@ -22,7 +22,7 @@ import time
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ftools.fmpfit import fmpfit_f64_pywrap
+from ftoolss.fmpfit import fmpfit_f64_pywrap
 
 # Parse command line argument for number of runs
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 10

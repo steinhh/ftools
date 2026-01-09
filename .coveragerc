@@ -1,5 +1,5 @@
 [run]
-source = src/ftools
+source = src/ftoolss
 omit = 
     */example_*.py
     */__pycache__/*

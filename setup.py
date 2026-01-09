@@ -12,7 +12,7 @@ def read_readme():
     if os.path.exists(readme):
         with io.open(readme, "r", encoding="utf8") as fh:
             return fh.read()
-    return "ftools: C-based local image filters (fmedian, fsigma)"
+    return "ftoolss: C-based local image filters (fmedian, fsigma)"
 
 
 # Try to obtain numpy include dir; setup_requires ensures numpy is available when
@@ -44,97 +44,97 @@ else:
 
 ext_modules = [
     Extension(
-        "ftools.fmedian.fmedian_ext",
-        sources=[os.path.join("src", "ftools", "fmedian", "fmedian_ext.c")],
+        "ftoolss.fmedian.fmedian_ext",
+        sources=[os.path.join("src", "ftoolss", "fmedian", "fmedian_ext.c")],
         include_dirs=include_dirs,
     ),
     Extension(
-        "ftools.fsigma.fsigma_ext",
-        sources=[os.path.join("src", "ftools", "fsigma", "fsigma_ext.c")],
+        "ftoolss.fsigma.fsigma_ext",
+        sources=[os.path.join("src", "ftoolss", "fsigma", "fsigma_ext.c")],
         include_dirs=include_dirs,
     ),
     Extension(
-        "ftools.fmedian3.fmedian3_ext",
-        sources=[os.path.join("src", "ftools", "fmedian3", "fmedian3_ext.c")],
+        "ftoolss.fmedian3.fmedian3_ext",
+        sources=[os.path.join("src", "ftoolss", "fmedian3", "fmedian3_ext.c")],
         include_dirs=include_dirs,
     ),
     Extension(
-        "ftools.fsigma3.fsigma3_ext",
-        sources=[os.path.join("src", "ftools", "fsigma3", "fsigma3_ext.c")],
+        "ftoolss.fsigma3.fsigma3_ext",
+        sources=[os.path.join("src", "ftoolss", "fsigma3", "fsigma3_ext.c")],
         include_dirs=include_dirs,
     ),
     Extension(
-        "ftools.fgaussian.fgaussian_f32_ext",
-        sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_f32_ext.c")],
-        include_dirs=include_dirs,
-        extra_compile_args=fgaussian_extra_compile_args,
-        extra_link_args=fgaussian_extra_link_args,
-    ),
-    Extension(
-        "ftools.fgaussian.fgaussian_f64_ext",
-        sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_f64_ext.c")],
+        "ftoolss.fgaussian.fgaussian_f32_ext",
+        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_f32_ext.c")],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fgaussian.fgaussian_jacobian_f32_ext",
-        sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f32_ext.c")],
+        "ftoolss.fgaussian.fgaussian_f64_ext",
+        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_f64_ext.c")],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fgaussian.fgaussian_jacobian_f64_ext",
-        sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f64_ext.c")],
+        "ftoolss.fgaussian.fgaussian_jacobian_f32_ext",
+        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f32_ext.c")],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fgaussian.fgaussian_jacobian_f64_f32_ext",
-        sources=[os.path.join("src", "ftools", "fgaussian", "fgaussian_jacobian_f64_f32_ext.c")],
+        "ftoolss.fgaussian.fgaussian_jacobian_f64_ext",
+        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_ext.c")],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fmpfit.fmpfit_f64_ext",
+        "ftoolss.fgaussian.fgaussian_jacobian_f64_f32_ext",
+        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_f32_ext.c")],
+        include_dirs=include_dirs,
+        extra_compile_args=fgaussian_extra_compile_args,
+        extra_link_args=fgaussian_extra_link_args,
+    ),
+    Extension(
+        "ftoolss.fmpfit.fmpfit_f64_ext",
         sources=[
-            os.path.join("src", "ftools", "fmpfit", "fmpfit_f64_ext.c"),
-            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "fmpfit_f64_ext.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "cmpfit-1.5", "mpfit.c"),
         ],
-        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        include_dirs=include_dirs + [os.path.join("src", "ftoolss", "fmpfit")],
         extra_compile_args=["-O3"],
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fmpfit.fmpfit_f32_ext",
+        "ftoolss.fmpfit.fmpfit_f32_ext",
         sources=[
-            os.path.join("src", "ftools", "fmpfit", "fmpfit_f32_ext.c"),
-            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "fmpfit_f32_ext.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "cmpfit-1.5", "mpfit.c"),
         ],
-        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        include_dirs=include_dirs + [os.path.join("src", "ftoolss", "fmpfit")],
         extra_compile_args=["-O3", "-DMPFIT_FLOAT"],
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fmpfit.fmpfit_f64_block_ext",
+        "ftoolss.fmpfit.fmpfit_f64_block_ext",
         sources=[
-            os.path.join("src", "ftools", "fmpfit", "fmpfit_f64_block_ext.c"),
-            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "fmpfit_f64_block_ext.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "cmpfit-1.5", "mpfit.c"),
         ],
-        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        include_dirs=include_dirs + [os.path.join("src", "ftoolss", "fmpfit")],
         extra_compile_args=["-O3"],
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
-        "ftools.fmpfit.fmpfit_f32_block_ext",
+        "ftoolss.fmpfit.fmpfit_f32_block_ext",
         sources=[
-            os.path.join("src", "ftools", "fmpfit", "fmpfit_f32_block_ext.c"),
-            os.path.join("src", "ftools", "fmpfit", "cmpfit-1.5", "mpfit.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "fmpfit_f32_block_ext.c"),
+            os.path.join("src", "ftoolss", "fmpfit", "cmpfit-1.5", "mpfit.c"),
         ],
-        include_dirs=include_dirs + [os.path.join("src", "ftools", "fmpfit")],
+        include_dirs=include_dirs + [os.path.join("src", "ftoolss", "fmpfit")],
         extra_compile_args=["-O3", "-DMPFIT_FLOAT"],
         extra_link_args=fgaussian_extra_link_args,
     ),
@@ -142,10 +142,10 @@ ext_modules = [
 
 
 setup(
-    name="ftools",
+    name="ftoolss",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    version="5.2.26",
+    version="6.0.1",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
@@ -155,7 +155,7 @@ setup(
     packages=find_packages("src"),
     # Include mpfit C source files so other packages can compile against them
     package_data={
-        "ftools.fmpfit": [
+        "ftoolss.fmpfit": [
             "cmpfit-1.5/mpfit.h",
             "cmpfit-1.5/mpfit.c",
             "cmpfit-1.5/DISCLAIMER",

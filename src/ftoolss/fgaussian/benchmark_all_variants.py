@@ -102,7 +102,7 @@ def _run_benchmarks_subprocess(sizes):
         script = f"""
 import numpy as np
 import time
-from ftools.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
+from ftoolss.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
 
 n = {n}
 num_iter = {num_iter}
@@ -140,7 +140,7 @@ print(f"{{time_f64}} {{time_f32}}")
 """
         
         # Set up environment with PYTHONPATH to find ftools module
-        # Prepend src directory to ensure we find the correct ftools package
+        # Prepend src directory to ensure we find the correct ftoolss package
         env = os.environ.copy()
         src_path = os.path.join(cwd, 'src')
         env['PYTHONPATH'] = src_path
@@ -175,7 +175,7 @@ def benchmark_size(n, num_iterations=1000):
     for mod in mods_to_delete:
         del sys.modules[mod]
     
-    from ftools.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
+    from ftoolss.fgaussian import fgaussian_f32_ext, fgaussian_f64_ext
     
     # Setup
     x_f32 = np.linspace(-10, 10, n, dtype=np.float32)

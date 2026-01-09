@@ -1,4 +1,4 @@
-"""Top level package for ftools.
+"""Top level package for ftoolss.
 
 Expose unified function names at package level so users can call
 `fmedian` and `fsigma` with either 2D or 3D arrays.
@@ -104,7 +104,7 @@ fsigma3d = _fsigma3d
 # Get version from package metadata (set by setup.py)
 try:
     from importlib.metadata import version as _get_version
-    __version__ = _get_version("ftools")
+    __version__ = _get_version("ftoolss")
 except Exception:
     __version__ = "unknown"
 

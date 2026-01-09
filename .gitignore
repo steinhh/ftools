@@ -7,7 +7,7 @@ __pycache__/
 *$py.class
 
 # Test output pngs:
-src/ftools/fmpfit/figs
+src/ftoolss/fmpfit/figs
 
 # C extensions
 *.so

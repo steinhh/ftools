@@ -1,7 +1,7 @@
-"""ftools.fsigma package loader.
+"""ftoolss.fsigma package loader.
 
 Locate the pre-built `fsigma` extension in the repository and load it.
-Expose `fsigma` at package level for `from ftools import fsigma` imports.
+Expose `fsigma` at package level for `from ftoolss import fsigma` imports.
 """
 from __future__ import annotations
 

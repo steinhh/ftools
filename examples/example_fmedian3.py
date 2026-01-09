@@ -8,7 +8,7 @@ the filtered median function to smooth it.
 
 import numpy as np
 
-from ftools.fmedian3 import fmedian3
+from ftoolss.fmedian3 import fmedian3
 
 def main():
     print("=" * 60)

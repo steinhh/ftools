@@ -1,7 +1,7 @@
-"""ftools.fsigma3 package loader.
+"""ftoolss.fsigma3 package loader.
 
 Locate the pre-built `fsigma3` extension in the repository and load it.
-Expose `fsigma3` at package level for `from ftools import fsigma3` imports.
+Expose `fsigma3` at package level for `from ftoolss import fsigma3` imports.
 """
 from __future__ import annotations
 
