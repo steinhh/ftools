@@ -35,7 +35,7 @@ except Exception:
 
     if not candidates:
         raise ImportError(
-            "Could not locate the compiled fmedian extension (expected src/ftools/fmedian/fmedian_ext*.so or fmedian/fmedian_ext*.so). "
+            "Could not locate the compiled fmedian extension (expected src/ftoolss/fmedian/fmedian_ext*.so or fmedian/fmedian_ext*.so). "
             "Build it first or install the package so the extension is available."
         )
 

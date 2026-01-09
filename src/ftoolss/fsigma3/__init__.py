@@ -24,7 +24,7 @@ except Exception:
 
     if not candidates:
         raise ImportError(
-            "Could not locate the compiled fsigma3 extension (expected src/ftools/fsigma3/fsigma3_ext*.so or fsigma3/fsigma3_ext*.so). "
+            "Could not locate the compiled fsigma3 extension (expected src/ftoolss/fsigma3/fsigma3_ext*.so or fsigma3/fsigma3_ext*.so). "
             "Build it first or install the package so the extension is available."
         )
 
