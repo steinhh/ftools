@@ -1,18 +1,14 @@
 name: Build and Publish to TestPyPI
 
 on:
-  release:
-    types: [published]
   push:
     tags:
-      - 'v*-test*'  # Trigger on test tags
+      - 'v*-test*'
 
 jobs:
   build_and_publish:
-    name: Build and publish Python distribution
+    name: Build and publish to TestPyPI
     runs-on: ubuntu-latest
-    # Only publish on release or test tags 
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     
     environment:
       name: pypi
@@ -91,4 +87,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-        # Uses trusted publishing - configure at test.pypi.org first
+        # Uses trusted publishing - configure at https://test.pypi.org/manage/project/ftoolss/settings/publishing/

@@ -1,44 +1,90 @@
-name: Release
+name: Build and publish to PyPI
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*-prod*'
 
 jobs:
-  build-release:
+  build_and_publish:
+    name: Build and publish to PyPI
     runs-on: ubuntu-latest
+    
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ftoolss/
+    
     permissions:
-      contents: write  # Required to create releases
+      id-token: write  # Required for trusted publishing
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+      - name: Install build dependencies
+        run: python -m pip install --upgrade pip build numpy cibuildwheel
 
-      - name: Install build tool
-        run: python -m pip install build
+      - name: Build source distribution
+        run: python -m build --sdist
 
-      - name: Build distributions
-        run: python -m build
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/*
-          body: |
-            Automated release for ${{ github.ref_name }}.
-            
-            ## Installation
-            ```bash
-            pip install ftoolss==${{ github.ref_name }}
-            ```
+      - name: Build wheels
+        run: python -m cibuildwheel --output-dir dist
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Build for Python 3.10-3.13
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
+          # Skip 32-bit builds and musllinux
+          CIBW_SKIP: "*-win32 *-manylinux_i686 *musllinux*"
+          # Install numpy before building
+          CIBW_BEFORE_BUILD: "pip install numpy"
+          # Test the wheel - copy tests to temp dir, clean pycache, avoid src/ shadowing
+          CIBW_TEST_REQUIRES: "pytest numpy scipy"
+          CIBW_BEFORE_TEST: "rm -rf /tmp/ftoolss_tests && mkdir -p /tmp/ftoolss_tests && cp {project}/tests/*.py /tmp/ftoolss_tests/ && find /tmp/ftoolss_tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true"
+          CIBW_TEST_COMMAND: "python -c 'from ftoolss import fmedian, fsigma; print(\"Import OK\")' && pytest /tmp/ftoolss_tests -q --ignore=__pycache__"
+          # Build for linux x86_64 only on ubuntu runner
+          CIBW_ARCHS_LINUX: "x86_64"
+
+      - name: List distribution files
+        run: ls -la dist/
+
+      - name: Verify distribution integrity
+        run: |
+          echo "Verifying distribution files..."
+          # Check source distribution
+          for sdist in dist/*.tar.gz; do
+            if [ -f "$sdist" ]; then
+              echo "Checking $sdist..."
+              if ! tar -tzf "$sdist" >/dev/null 2>&1; then
+                echo "ERROR: $sdist is corrupted"
+                exit 1
+              fi
+              echo "? $sdist is valid"
+            fi
+          done
+          # Check wheels
+          pip install wheel
+          for wheel_file in dist/*.whl; do
+            if [ -f "$wheel_file" ]; then
+              echo "Checking $wheel_file..."
+              if ! python -m zipfile -t "$wheel_file" >/dev/null 2>&1; then
+                echo "ERROR: $wheel_file is corrupted"
+                exit 1
+              fi
+              if ! python -m wheel unpack --dest /tmp/wheel_check "$wheel_file" >/dev/null 2>&1; then
+                echo "ERROR: $wheel_file has invalid metadata"
+                python -m wheel unpack --dest /tmp/wheel_check "$wheel_file" 2>&1 || true
+                exit 1
+              fi
+              rm -rf /tmp/wheel_check/*
+              echo "? $wheel_file is valid"
+            fi
+          done
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://upload.pypi.org/legacy/
+        # Uses trusted publishing - configure at https://pypi.org/manage/project/ftoolss/settings/publishing/
