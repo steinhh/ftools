@@ -40,7 +40,7 @@ if sys.platform == "darwin":
     fgaussian_extra_link_args = ["-framework", "Accelerate"]
 else:
     # Linux/other platforms: explicitly link math library for vectorized functions
-    fgaussian_extra_link_args = ["-lm"]
+    fgaussian_extra_link_args = ["-lm", "-lmvec"]
 
 ext_modules = [
     Extension(
@@ -145,7 +145,7 @@ setup(
     name="ftoolss",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    version="6.0.15",
+    version="6.0.16",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
