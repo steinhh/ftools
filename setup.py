@@ -146,7 +146,7 @@ setup(
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
     # Version 6 changed name to ftoolss (ftools, Stein's) for publishing to PiPY
-    version="6.0.26",
+    version="6.0.27",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
