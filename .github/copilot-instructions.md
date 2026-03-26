@@ -194,10 +194,7 @@ Use `PyErr_SetString()` for validation errors, return NULL to propagate to Pytho
 
 ## Shell Environment
 
-This project uses `tcsh` shell. Use tcsh-compatible syntax:
-
-- Output redirection: `command >& file` not `command &> file`
-- Pipe stderr: `command |& filter` not `command 2>&1 | filter`
+This project will sometimes use `tcsh` and sometimes `bash`/`zsh`. Check the shell before using shell-specific syntax
 
 ## Developer-added instructions (do not modify or delete)
 
