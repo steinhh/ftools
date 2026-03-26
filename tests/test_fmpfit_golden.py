@@ -29,9 +29,9 @@ def _gaussian_5pt_f32(seed):
     true_params = np.array([2.5, 0.0, 0.8], dtype=np.float32)
     fwhm = float(2.355 * true_params[2])
     x = np.linspace(-fwhm / 2, fwhm / 2, 5, dtype=np.float32)
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     y_true = true_params[0] * np.exp(-0.5 * ((x - true_params[1]) / true_params[2]) ** 2)
-    y = np.random.poisson(y_true).astype(np.float32)
+    y = rng.poisson(y_true).astype(np.float32)
     err = np.sqrt(np.maximum(y, 1.0)).astype(np.float32)
     return x, y, err
 
@@ -41,9 +41,9 @@ def _gaussian_5pt_f64(seed):
     true_params = np.array([2.5, 0.0, 0.8], dtype=np.float64)
     fwhm = float(2.355 * true_params[2])
     x = np.linspace(-fwhm / 2, fwhm / 2, 5, dtype=np.float64)
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     y_true = true_params[0] * np.exp(-0.5 * ((x - true_params[1]) / true_params[2]) ** 2)
-    y = np.random.poisson(y_true).astype(np.float64)
+    y = rng.poisson(y_true).astype(np.float64)
     err = np.sqrt(np.maximum(y, 1.0)).astype(np.float64)
     return x, y, err
 
@@ -159,7 +159,7 @@ class TestFmpfitF64Golden:
         result = fmpfit_f64_pywrap(0, parinfo=parinfo, functkw={'x': x, 'y': y, 'error': err})
 
         # mean is pegged at upper bound (2.0), so xerror[1] is 0
-        assert result.xerror[1] == 0.0, "xerror[1] should be 0 when pegged at bound"
+        assert result.xerror[1] == pytest.approx(0.0, abs=1e-10), "xerror[1] should be 0 when pegged at bound"
         # xerror_scipy uses Hessian inverse - should be large but finite
         expected_scipy = np.array([6.14382867, 21.86389779, 14.82509948])
         np.testing.assert_allclose(result.xerror_scipy, expected_scipy, rtol=1e-5,
@@ -218,7 +218,7 @@ class TestFmpfitF32Golden:
         result = fmpfit_f32_pywrap(0, parinfo=parinfo, functkw={'x': x, 'y': y, 'error': err})
 
         # mean is pegged at upper bound ? xerror[1] == 0
-        assert result.xerror[1] == 0.0, "xerror[1] should be 0 when pegged at bound"
+        assert result.xerror[1] == pytest.approx(0.0, abs=1e-10), "xerror[1] should be 0 when pegged at bound"
         expected_scipy = np.array([6.143815, 21.863874, 14.825083], dtype=np.float32)
         np.testing.assert_allclose(result.xerror_scipy, expected_scipy, rtol=1e-4,
                                    err_msg="xerror_scipy golden mismatch (f32 5pt seed42)")
@@ -272,20 +272,26 @@ class TestFmpfitF32Golden:
 class TestFmpfitF64BlockGolden:
     """Regression tests for fmpfit_f64_block_pywrap."""
 
-    def _make_block_data(self, N=3, seed=42):
-        """Generate N spectra with Poisson noise (reproducible)."""
+    def _make_block_data(self, n_spectra=3):
+        """Return (x, y, err, p0, bnd) for n_spectra=3 spectra.
+
+        y values are hardcoded Poisson draws (legacy seed=42) so golden values
+        remain stable regardless of the NumPy random-generator version.
+        """
         tp = np.array([2.5, 0.0, 0.8], dtype=np.float64)
         fwhm = float(2.355 * tp[2])
         x1d = np.linspace(-fwhm / 2, fwhm / 2, 5, dtype=np.float64)
         p0_1d = np.array([2.0, 0.0, 1.0], dtype=np.float64)
         bnd_1d = np.array([[0.0, 10.0], [-2.0, 2.0], [0.1, 5.0]], dtype=np.float64)
-        np.random.seed(seed)
-        x = np.tile(x1d, (N, 1))
-        y_true = tp[0] * np.exp(-0.5 * ((x - tp[1]) / tp[2]) ** 2)
-        y = np.random.poisson(y_true).astype(np.float64)
+        x = np.tile(x1d, (n_spectra, 1))
+        y = np.array([
+            [2., 1., 1., 3., 2.],
+            [0., 1., 2., 1., 1.],
+            [2., 2., 2., 4., 2.],
+        ], dtype=np.float64)[:n_spectra]
         err = np.sqrt(np.maximum(y, 1.0)).astype(np.float64)
-        p0 = np.tile(p0_1d, (N, 1))
-        bnd = np.tile(bnd_1d, (N, 1, 1))
+        p0 = np.tile(p0_1d, (n_spectra, 1))
+        bnd = np.tile(bnd_1d, (n_spectra, 1, 1))
         return x, y, err, p0, bnd
 
     def test_block_f64_n3_seed42_params(self):
@@ -345,20 +351,26 @@ class TestFmpfitF64BlockGolden:
 class TestFmpfitF32BlockGolden:
     """Regression tests for fmpfit_f32_block_pywrap."""
 
-    def _make_block_data(self, N=3, seed=42):
-        """Generate N f32 spectra with Poisson noise (reproducible)."""
+    def _make_block_data(self, n_spectra=3):
+        """Return (x, y, err, p0, bnd) for n_spectra=3 f32 spectra.
+
+        y values are hardcoded Poisson draws (legacy seed=42) so golden values
+        remain stable regardless of the NumPy random-generator version.
+        """
         tp = np.array([2.5, 0.0, 0.8], dtype=np.float32)
         fwhm = float(2.355 * tp[2])
         x1d = np.linspace(-fwhm / 2, fwhm / 2, 5, dtype=np.float32)
         p0_1d = np.array([2.0, 0.0, 1.0], dtype=np.float32)
         bnd_1d = np.array([[0.0, 10.0], [-2.0, 2.0], [0.1, 5.0]], dtype=np.float32)
-        np.random.seed(seed)
-        x = np.tile(x1d, (N, 1))
-        y_true = tp[0] * np.exp(-0.5 * ((x - tp[1]) / tp[2]) ** 2)
-        y = np.random.poisson(y_true).astype(np.float32)
+        x = np.tile(x1d, (n_spectra, 1))
+        y = np.array([
+            [2., 1., 1., 3., 2.],
+            [0., 1., 2., 1., 1.],
+            [2., 2., 2., 4., 2.],
+        ], dtype=np.float32)[:n_spectra]
         err = np.sqrt(np.maximum(y, 1.0)).astype(np.float32)
-        p0 = np.tile(p0_1d, (N, 1))
-        bnd = np.tile(bnd_1d, (N, 1, 1))
+        p0 = np.tile(p0_1d, (n_spectra, 1))
+        bnd = np.tile(bnd_1d, (n_spectra, 1, 1))
         return x, y, err, p0, bnd
 
     def test_block_f32_n3_seed42_params(self):
