@@ -105,8 +105,10 @@ All `*_ext.c` files follow this structure:
 ### Building Extensions
 
 ```bash
-# Activate the Python 3.13 environment with NumPy
-conda activate py313
+# Activate the project venv (bash/zsh)
+source .venv/bin/activate
+# or on tcsh:
+source .venv/bin/activate.csh
 
 # In-place build (for development/testing)
 python setup.py build_ext --inplace
@@ -115,13 +117,12 @@ python setup.py build_ext --inplace
 pip install -e .
 ```
 
-**Important:** Always activate `py313` environment first, then run `build_ext --inplace` after modifying C code before running tests.
+**Important:** The project uses `.venv/` in the workspace root. Check `(.venv)` is shown in the prompt before running commands. Run `build_ext --inplace` after modifying C code before running tests.
 
 ### Testing
 
 ```bash
-# Activate environment first
-conda activate py313
+# Activate environment first (bash/zsh: source .venv/bin/activate)
 
 # All tests (requires built extensions)
 pytest
