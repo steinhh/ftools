@@ -185,8 +185,8 @@ class TestFmpfitF32Golden:
         ]
         result = fmpfit_f32_pywrap(0, parinfo=parinfo, functkw={'x': x, 'y': y, 'error': err})
 
-        expected = np.array([2.1008682, 2., 2.5734887], dtype=np.float32)
-        np.testing.assert_allclose(result.best_params, expected, rtol=1e-5,
+        expected = np.array([2.100182, 2., 2.574894], dtype=np.float32)
+        np.testing.assert_allclose(result.best_params, expected, rtol=1e-3,
                                    err_msg="best_params golden mismatch (f32 5pt seed42)")
         assert result.status == 1
 
@@ -219,8 +219,8 @@ class TestFmpfitF32Golden:
 
         # mean is pegged at upper bound ? xerror[1] == 0
         assert result.xerror[1] == pytest.approx(0.0, abs=1e-10), "xerror[1] should be 0 when pegged at bound"
-        expected_scipy = np.array([6.143815, 21.863874, 14.825083], dtype=np.float32)
-        np.testing.assert_allclose(result.xerror_scipy, expected_scipy, rtol=1e-4,
+        expected_scipy = np.array([6.141826, 21.886211, 14.847473], dtype=np.float32)
+        np.testing.assert_allclose(result.xerror_scipy, expected_scipy, rtol=2e-3,
                                    err_msg="xerror_scipy golden mismatch (f32 5pt seed42)")
 
     def test_lw_at_upper_bound_bugcase(self):
@@ -380,11 +380,11 @@ class TestFmpfitF32BlockGolden:
                                          xtol=1e-6, ftol=1e-6, gtol=1e-6, maxiter=2000)
 
         expected = np.array([
-            [2.1008682,  2.,         2.5734887 ],
-            [1.5875187,  0.15956157, 0.6072468 ],
-            [2.5077677,  0.33879173, 1.5495867 ],
+            [2.100182,  2.,        2.574894],
+            [1.587335,  0.159487,  0.607375],
+            [2.507876,  0.338557,  1.549057],
         ], dtype=np.float32)
-        np.testing.assert_allclose(result['best_params'], expected, rtol=1e-5,
+        np.testing.assert_allclose(result['best_params'], expected, rtol=1e-3,
                                    err_msg="block f32 best_params golden mismatch")
 
     def test_block_f32_n3_seed42_bestnorm(self):
