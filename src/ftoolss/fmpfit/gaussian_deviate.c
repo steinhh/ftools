@@ -47,9 +47,9 @@ struct GD_STRUCT_NAME
  * Parameters: p[0] = amplitude, p[1] = mean, p[2] = sigma
  */
 int GD_FUNC_NAME(int m, int n, gd_real *p, gd_real *deviates,
-                 gd_real **derivs, void *user_data)
+                 gd_real **derivs, void *private_data)
 {
-  struct GD_STRUCT_NAME *pdata = (struct GD_STRUCT_NAME *)user_data;
+  struct GD_STRUCT_NAME *pdata = (struct GD_STRUCT_NAME *)private_data;
   int i;
   gd_real amp, mean, sigma;
   (void)n; /* Suppress unused parameter warning */
