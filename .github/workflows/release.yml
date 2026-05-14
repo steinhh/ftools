@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*-prod*'
 
+permissions:
+  contents: read
+
 jobs:
   build_and_publish:
     name: Build and publish to PyPI
@@ -18,10 +21,15 @@ jobs:
       id-token: write  # Required for trusted publishing
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.13'
 
@@ -84,7 +92,7 @@ jobs:
           done
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           repository-url: https://upload.pypi.org/legacy/
         # Uses trusted publishing - configure at https://pypi.org/manage/project/ftoolss/settings/publishing/
