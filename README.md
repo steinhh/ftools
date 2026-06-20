@@ -8,7 +8,7 @@ High-performance C extensions for image processing and curve fitting.
 |--------|-------------|
 | `fmedian` | Local median filter (2D/3D auto-dispatch) |
 | `fmedian2d`, `fmedian3d` | Direct 2D/3D median |
-| `fsigma` | Local ? filter (2D/3D auto-dispatch) |
+| `fsigma` | Local sigma filter (2D/3D auto-dispatch) |
 | `fsigma2d`, `fsigma3d` | Direct 2D/3D sigma |
 | `fgaussian_f32`, `fgaussian_f64` | Gaussian profile (Accelerate-optimized) |
 | `fmpfit_pywrap` | Auto dtype dispatch (single spectrum) |
