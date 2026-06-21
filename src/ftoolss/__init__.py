@@ -18,7 +18,7 @@ from .fmpfit import (
 )
 from .fsigma import fsigma as _fsigma2d
 from .fsigma3 import fsigma3 as _fsigma3d
-from .sigma_clip import sigma_clip
+from .sigma_clip.sigma_clip import sigma_clip
 
 
 def fmedian(input_array, window_size: tuple, exclude_center: int = 0):
