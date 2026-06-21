@@ -1,7 +1,7 @@
 import numpy as np
-from scipy.ndimage import generic_filter
-from numpy import ma
 from ftools import fmedian, fsigma
+from numpy import ma
+
 
 def sigma_clip(
     data,
@@ -10,16 +10,13 @@ def sigma_clip(
     sigma_lower=None,
     sigma_upper=None,
     maxiters=5,
-    centerfunc="median",
-    masked=True,
-    ret_center=False,
-    ret_stddev=False,
     exclude_center=False,
+    fill=False,
 ):
     """
-     Performs sigma-clipping of the input array.
+    Performs sigma-clipping of the input array.
 
-     Parameters
+    Parameters
      ----------
     data: numpy.ndarray
         Input array
@@ -30,14 +27,14 @@ def sigma_clip(
         This is overriden by `sigma_lower` and `sigma_upper`
     sigma_lower: float
         Low threshold, in units of the standard deviation of the local intensity distribution
-    sigmer_upper: float
+    sigma_upper: float
         High threshold, in units of the standard deviation of the local intensity distribution
     maxiters: int
         Maximum number of iterations to perform
-    centerfunc: str
-        Method used to estimate the center of the local intensity distribution ("median" (default) or "mean")
-    masked: bool
-        Return a `numpy.ma.MaskedArray` (default) instead of an `numpy.array`
+    exclude_center: bool
+        Whether to exclude the center pixel when computing the local median and standard deviation.
+         This is useful when the center pixel is expected to be an outlier (e.g. a cosmic ray) and
+         would bias the local statistics.
 
     Returns
     -------
@@ -59,19 +56,17 @@ def sigma_clip(
         iteration += 1
         center = fmedian(output, size, exclude_center=exclude_center)
         stddev = fsigma(output, size, exclude_center=exclude_center)
-        if ret_center and iteration == maxiters:
-            return center
-        if ret_stddev and iteration == maxiters:
-            return stddev
         diff = output - center
         new_mask = (diff > sigma_upper * stddev) | (diff < -sigma_lower * stddev)
         output[new_mask] = np.nan
         nchanged = np.count_nonzero(new_mask)
-    nan = np.isnan(output)
-    output[nan] = center[nan] # Last value for center used for filling
-    if masked:
-        return ma.masked_array(output, mask=nan)
-    else:
-        return output
+    if fill:
+        nan = np.isnan(output)
+        output[nan] = center[nan]  # Last value for center used for filling
+        # There is a chance that the fmedian() center value was also NaN, we need to
+        # iteratively fill those as well
+        while np.any(np.isnan(output)):
+            center = fmedian(output, size, exclude_center=exclude_center)
+            output[np.isnan(output)] = center[np.isnan(output)]
 
-    
+    return output
