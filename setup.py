@@ -156,7 +156,9 @@ setup(
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
     # Version 6 changed name to ftoolss (ftools - Stein's) for publishing to PiPY
     # Version 6.1.0 adds sigma_clip
-    version="6.1.3",
+    # Version 6.1.3 adds hook for auto-bumping patch version
+    # Version 6.1.4 adds this message (testing on Linux)
+    version="6.1.4",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
