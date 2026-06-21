@@ -3,7 +3,8 @@ from __future__ import annotations
 import io
 import os
 import sys
-from setuptools import setup, find_packages, Extension
+
+from setuptools import Extension, find_packages, setup
 
 
 def read_readme():
@@ -79,21 +80,29 @@ ext_modules = [
     ),
     Extension(
         "ftoolss.fgaussian.fgaussian_jacobian_f32_ext",
-        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f32_ext.c")],
+        sources=[
+            os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f32_ext.c")
+        ],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftoolss.fgaussian.fgaussian_jacobian_f64_ext",
-        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_ext.c")],
+        sources=[
+            os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_ext.c")
+        ],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
     ),
     Extension(
         "ftoolss.fgaussian.fgaussian_jacobian_f64_f32_ext",
-        sources=[os.path.join("src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_f32_ext.c")],
+        sources=[
+            os.path.join(
+                "src", "ftoolss", "fgaussian", "fgaussian_jacobian_f64_f32_ext.c"
+            )
+        ],
         include_dirs=include_dirs,
         extra_compile_args=fgaussian_extra_compile_args,
         extra_link_args=fgaussian_extra_link_args,
@@ -145,7 +154,7 @@ setup(
     name="ftoolss",
     # Version 5 introduced fmpfit
     # Version 5.2 introduces xerror_scipy (different handling of bounded params)
-    # Version 6 changed name to ftoolss (ftools, Stein's) for publishing to PiPY
+    # Version 6 changed name to ftoolss (ftools - Stein's) for publishing to PiPY
     version="6.0.38",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),

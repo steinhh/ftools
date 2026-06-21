@@ -27,7 +27,7 @@ pip install -e .                     # Editable (development)
 python setup.py build_ext --inplace  # Build extensions only
 ```
 
-**Requirements:** Python 3.8+, NumPy ?1.20, C compiler. macOS Accelerate used when available.
+**Requirements:** Python 3.8+, NumPy >=1.20, C compiler. macOS Accelerate used when available.
 
 ## Quick Start
 
@@ -105,7 +105,7 @@ fsigma(data, window_size, exclude_center=0)
 
 ### fgaussian_f32 / fgaussian_f64
 
-Computes: `i0 * exp(-((x - mu)² / (2 * sigma²))`
+Computes: `i0 * exp(-((x - mu)� / (2 * sigma�)))`
 
 ```python
 fgaussian_f32(x, i0, mu, sigma)  # float32, fastest
