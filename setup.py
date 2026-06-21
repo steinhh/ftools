@@ -158,7 +158,7 @@ setup(
     # Version 6.1.0 adds sigma_clip
     # Version 6.1.3 adds hook for auto-bumping patch version
     # Version 6.1.4 adds this message (testing on Linux)
-    version="6.1.4",
+    version="6.1.5",
     description="Small C extensions for local image filters (fmedian, fsigma)",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
