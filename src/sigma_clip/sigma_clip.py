@@ -1,6 +1,5 @@
 import numpy as np
 from ftools import fmedian, fsigma
-from numpy import ma
 
 
 def sigma_clip(
