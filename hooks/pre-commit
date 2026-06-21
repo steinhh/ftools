@@ -1,42 +1,88 @@
-#!/bin/bash
-#
-# Pre-commit hook to automatically increment patch version number in setup.py
-# and append branch name to version
-#
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pre-commit hook: automatically bump project version declared in setup.py.
+# Default behavior: bump the patch component (e.g. 6.0.1 -> 6.0.2).
+# You can override with BUMP_LEVEL=minor or BUMP_LEVEL=major.
+# The hook will also update src/ftoolss.egg-info/PKG-INFO if present.
+
+# To enable repository hooks (recommended):
+#   git config core.hooksPath hooks
+#   chmod +x hooks/pre-commit
+# Or copy this file to .git/hooks/pre-commit and make it executable.
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")
+cd "$REPO_ROOT" || exit 0
 
 SETUP_FILE="setup.py"
+PKG_INFO="src/ftoolss.egg-info/PKG-INFO"
 
-# Check if setup.py exists
 if [ ! -f "$SETUP_FILE" ]; then
-    echo "Error: setup.py not found"
-    exit 1
+        echo "No $SETUP_FILE found; skipping version bump."
+        exit 0
 fi
 
-# Get current branch name
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+# Bump level: patch (default), minor, or major
+BUMP_LEVEL=${BUMP_LEVEL:-patch}
 
-# Extract current version from setup.py (strip any existing branch suffix)
-CURRENT_VERSION=$(grep -E '^\s*version=' "$SETUP_FILE" | sed -E 's/.*version="([0-9]+\.[0-9]+\.[0-9]+).*".*/\1/')
+# Extract current semantic version (major.minor.patch) from setup.py using Python
+CURRENT_VERSION=$(python3 - <<'PY'
+import re,sys
+txt=open('setup.py','r',encoding='utf8').read()
+m=re.search(r'(?:^|\n)\s*version\s*=\s*["\']([0-9]+)\.([0-9]+)\.([0-9]+)', txt)
+if not m:
+        sys.exit(0)
+print(f"{m.group(1)}.{m.group(2)}.{m.group(3)}")
+PY
+)
 
 if [ -z "$CURRENT_VERSION" ]; then
-    echo "Error: Could not find version in setup.py"
-    exit 1
+        echo "Could not find a semantic version in $SETUP_FILE; skipping bump."
+        exit 0
 fi
 
-# Split version into major.minor.patch
-MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
-# Increment patch version
-NEW_PATCH=$((PATCH + 1))
-NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+case "$BUMP_LEVEL" in
+    major)
+        NEW_VERSION="$((MAJOR+1)).0.0"
+        ;;
+    minor)
+        NEW_VERSION="$MAJOR.$((MINOR+1)).0"
+        ;;
+    patch|*)
+        NEW_VERSION="$MAJOR.$MINOR.$((PATCH+1))"
+        ;;
+esac
 
-# Update version in setup.py
-sed -i.bak -E "s/(version=\")[0-9]+\.[0-9]+\.[0-9]+(\+[^\"]+)?\"/\1$NEW_VERSION\"/" "$SETUP_FILE"
-rm -f "${SETUP_FILE}.bak"
+# Replace the numeric version in setup.py (preserve surrounding quotes/suffixes)
+python3 - "$NEW_VERSION" <<'PY'
+import sys,re
+nv=sys.argv[1]
+p='setup.py'
+s=open(p,'r',encoding='utf8').read()
+m=re.search(r'(?:^|\n)(\s*version\s*=\s*["\'])([0-9]+)\.([0-9]+)\.([0-9]+)([^"\']*)(["\'])', s)
+if not m:
+        sys.exit(1)
+start=m.start(2)
+end=m.end(4)
+s = s[:start] + nv + s[end:]
+open(p,'w',encoding='utf8').write(s)
+PY
 
-# Add the modified setup.py to the commit
+# If a PKG-INFO file exists in src/ftoolss.egg-info, update its Version: line as well
+if [ -f "$PKG_INFO" ]; then
+    python3 - "$NEW_VERSION" "$PKG_INFO" <<'PY'
+import sys,re
+nv=sys.argv[1]; p=sys.argv[2]
+s=open(p,'r',encoding='utf8').read()
+s2=re.sub(r'(^Version:\s*)([0-9]+\.[0-9]+\.[0-9]+)', lambda m: m.group(1) + nv, s, flags=re.M)
+open(p,'w',encoding='utf8').write(s2)
+PY
+    git add "$PKG_INFO" || true
+fi
+
+# Stage modified setup.py so the updated version is included in the commit
 git add "$SETUP_FILE"
 
 echo "Version bumped: $CURRENT_VERSION -> $NEW_VERSION"

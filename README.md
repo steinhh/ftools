@@ -27,6 +27,19 @@ pip install -e .                     # Editable (development)
 python setup.py build_ext --inplace  # Build extensions only
 ```
 
+### Repository hooks
+
+This repository includes a pre-commit hook at `hooks/pre-commit` that will
+automatically bump the semantic version in `setup.py` on each commit (default
+behavior: bump the patch number). To enable the repository hooks for your
+local clone run:
+
+```bash
+git config core.hooksPath hooks
+chmod +x hooks/pre-commit
+# Optionally: BUMP_LEVEL=minor git commit -m "..."  # bump minor instead
+```
+
 **Requirements:** Python 3.8+, NumPy >=1.20, C compiler. macOS Accelerate used when available.
 
 ## Quick Start
